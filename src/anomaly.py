@@ -18,6 +18,7 @@ import sqlite3
 import os
 import math
 from collections import defaultdict
+from contextlib import contextmanager
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
@@ -28,30 +29,39 @@ class AnomalyDetector:
     def __init__(self, db_path=None):
         self.db_path = db_path or DB_PATH
 
-    def _connect(self):
-        return sqlite3.connect(self.db_path)
+    @contextmanager
+    def _db(self):
+        conn = sqlite3.connect(self.db_path)
+        try:
+            yield conn, conn.cursor()
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
-    def _get_transactions(self, trip_id):
-        conn = self._connect()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT txn_id, amount, amount_twd, currency_code, category,
-                   txn_datetime, location, payment_method, description
-            FROM transactions
-            WHERE trip_id = ?
-            ORDER BY txn_datetime
-        """, (trip_id,))
-        columns = ["txn_id", "amount", "amount_twd", "currency_code", "category",
-                    "txn_datetime", "location", "payment_method", "description"]
-        rows = [dict(zip(columns, r)) for r in cursor.fetchall()]
-        conn.close()
-        return rows
+    def _get_transactions(self, trip_id: int) -> list:
+        if not isinstance(trip_id, int) or trip_id <= 0:
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
+
+        with self._db() as (conn, cursor):
+            cursor.execute("""
+                SELECT txn_id, amount, amount_twd, currency_code, category,
+                       txn_datetime, location, payment_method, description
+                FROM transactions
+                WHERE trip_id = ?
+                ORDER BY txn_datetime
+            """, (trip_id,))
+            columns = ["txn_id", "amount", "amount_twd", "currency_code", "category",
+                       "txn_datetime", "location", "payment_method", "description"]
+            return [dict(zip(columns, r)) for r in cursor.fetchall()]
 
     # ============================================================
     #  Method 1: Z-Score (per category)
     # ============================================================
 
-    def detect_zscore(self, trip_id, threshold=2.0):
+    def detect_zscore(self, trip_id: int, threshold: float = 2.0) -> list:
         """
         Z-Score detection: flag transactions that deviate more than
         'threshold' standard deviations from their category mean.
@@ -60,11 +70,13 @@ class AnomalyDetector:
 
         If |Z| > threshold, it's anomalous.
         """
+        if threshold <= 0:
+            raise ValueError(f"threshold 必須大於 0，收到: {threshold}")
+
         txns = self._get_transactions(trip_id)
         if not txns:
             return []
 
-        # Group by category
         by_category = defaultdict(list)
         for t in txns:
             by_category[t["category"]].append(t)
@@ -75,7 +87,6 @@ class AnomalyDetector:
             n = len(amounts)
 
             if n < 2:
-                # Can't calculate std with less than 2 data points
                 for t in cat_txns:
                     t["zscore"] = 0
                     t["is_anomaly_zscore"] = False
@@ -112,7 +123,7 @@ class AnomalyDetector:
     #  Method 2: IQR (Interquartile Range)
     # ============================================================
 
-    def detect_iqr(self, trip_id, multiplier=1.5):
+    def detect_iqr(self, trip_id: int, multiplier: float = 1.5) -> list:
         """
         IQR detection: flag transactions outside [Q1 - 1.5*IQR, Q3 + 1.5*IQR]
 
@@ -120,6 +131,9 @@ class AnomalyDetector:
         Lower bound = Q1 - multiplier * IQR
         Upper bound = Q3 + multiplier * IQR
         """
+        if multiplier <= 0:
+            raise ValueError(f"multiplier 必須大於 0，收到: {multiplier}")
+
         txns = self._get_transactions(trip_id)
         if not txns:
             return []
@@ -152,7 +166,7 @@ class AnomalyDetector:
     #  Method 3: Isolation Forest (ML)
     # ============================================================
 
-    def detect_isolation_forest(self, trip_id, contamination=0.1):
+    def detect_isolation_forest(self, trip_id: int, contamination: float = 0.1) -> list:
         """
         Isolation Forest: unsupervised ML anomaly detection.
 
@@ -163,6 +177,9 @@ class AnomalyDetector:
 
         contamination: expected proportion of anomalies (default 10%)
         """
+        if not 0 < contamination < 0.5:
+            raise ValueError(f"contamination 必須在 (0, 0.5) 之間，收到: {contamination}")
+
         txns = self._get_transactions(trip_id)
         if not txns:
             return []
@@ -178,7 +195,6 @@ class AnomalyDetector:
                 t["if_reason"] = "scikit-learn not available"
             return txns
 
-        # Feature engineering
         categories = list(set(t["category"] for t in txns))
         cat_map = {c: i for i, c in enumerate(categories)}
 
@@ -193,13 +209,11 @@ class AnomalyDetector:
 
         X = np.array(features)
 
-        # Normalize features
         for col in range(X.shape[1]):
             col_std = X[:, col].std()
             if col_std > 0:
                 X[:, col] = (X[:, col] - X[:, col].mean()) / col_std
 
-        # Fit model
         model = IsolationForest(
             contamination=contamination,
             random_state=42,
@@ -224,7 +238,13 @@ class AnomalyDetector:
     #  Combined Detection
     # ============================================================
 
-    def detect_all(self, trip_id, zscore_threshold=2.0, iqr_multiplier=1.5, if_contamination=0.1):
+    def detect_all(
+        self,
+        trip_id: int,
+        zscore_threshold: float = 2.0,
+        iqr_multiplier: float = 1.5,
+        if_contamination: float = 0.1,
+    ) -> list:
         """
         Run all three detection methods and combine results.
 
@@ -242,10 +262,8 @@ class AnomalyDetector:
             iq = iqr_results.get(txn_id, {})
             iso = if_results.get(txn_id, {})
 
-            # Base transaction info
             base = z or iq or iso
 
-            # Count how many methods flagged it
             flags = sum([
                 z.get("is_anomaly_zscore", False),
                 iq.get("is_anomaly_iqr", False),
@@ -265,59 +283,54 @@ class AnomalyDetector:
                 "is_anomaly_if": iso.get("is_anomaly_if", False),
                 "if_score": iso.get("if_score", 0),
                 "flags": flags,
-                "is_anomaly": flags >= 2,  # majority vote
+                "is_anomaly": flags >= 2,
             }
 
             combined.append(entry)
 
         combined.sort(key=lambda x: x["flags"], reverse=True)
-
-        # Update database
         self._update_anomaly_flags(combined)
-
         return combined
 
-    def _update_anomaly_flags(self, results):
-        conn = self._connect()
-        cursor = conn.cursor()
-        for r in results:
-            cursor.execute("""
-                UPDATE transactions
-                SET is_anomaly = ?, anomaly_score = ?
-                WHERE txn_id = ?
-            """, (1 if r["is_anomaly"] else 0, r["if_score"], r["txn_id"]))
-        conn.commit()
-        conn.close()
+    def _update_anomaly_flags(self, results: list) -> None:
+        with self._db() as (conn, cursor):
+            for r in results:
+                cursor.execute("""
+                    UPDATE transactions
+                    SET is_anomaly = ?, anomaly_score = ?
+                    WHERE txn_id = ?
+                """, (1 if r["is_anomaly"] else 0, r["if_score"], r["txn_id"]))
 
     # ============================================================
     #  Summary
     # ============================================================
 
-    def get_anomaly_summary(self, trip_id):
-        conn = self._connect()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT COUNT(*) FROM transactions
-            WHERE trip_id = ? AND is_anomaly = 1
-        """, (trip_id,))
-        anomaly_count = cursor.fetchone()[0]
+    def get_anomaly_summary(self, trip_id: int) -> dict:
+        if not isinstance(trip_id, int) or trip_id <= 0:
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
-        cursor.execute("SELECT COUNT(*) FROM transactions WHERE trip_id = ?", (trip_id,))
-        total_count = cursor.fetchone()[0]
+        with self._db() as (conn, cursor):
+            cursor.execute("""
+                SELECT COUNT(*) FROM transactions
+                WHERE trip_id = ? AND is_anomaly = 1
+            """, (trip_id,))
+            anomaly_count = cursor.fetchone()[0]
 
-        cursor.execute("""
-            SELECT txn_id, amount_twd, category, description, location, anomaly_score
-            FROM transactions
-            WHERE trip_id = ? AND is_anomaly = 1
-            ORDER BY amount_twd DESC
-        """, (trip_id,))
-        anomalies = [
-            {"txn_id": r[0], "amount_twd": r[1], "category": r[2],
-             "description": r[3], "location": r[4], "score": r[5]}
-            for r in cursor.fetchall()
-        ]
+            cursor.execute("SELECT COUNT(*) FROM transactions WHERE trip_id = ?", (trip_id,))
+            total_count = cursor.fetchone()[0]
 
-        conn.close()
+            cursor.execute("""
+                SELECT txn_id, amount_twd, category, description, location, anomaly_score
+                FROM transactions
+                WHERE trip_id = ? AND is_anomaly = 1
+                ORDER BY amount_twd DESC
+            """, (trip_id,))
+            anomalies = [
+                {"txn_id": r[0], "amount_twd": r[1], "category": r[2],
+                 "description": r[3], "location": r[4], "score": r[5]}
+                for r in cursor.fetchall()
+            ]
+
         return {
             "total_transactions": total_count,
             "anomaly_count": anomaly_count,
@@ -333,7 +346,6 @@ if __name__ == "__main__":
     detector = AnomalyDetector()
     trip_id = 1
 
-    # === Method 1: Z-Score ===
     print("\n[Method 1] Z-Score Detection (threshold=2.0)")
     print("-" * 60)
     zscore = detector.detect_zscore(trip_id)
@@ -341,60 +353,17 @@ if __name__ == "__main__":
     print(f"  Flagged: {len(flagged_z)} / {len(zscore)} transactions")
     for t in flagged_z:
         print(f"    txn#{t['txn_id']} {t['category']} NT${t['amount_twd']:,} Z={t['zscore']:+.2f}")
-        print(f"      {t['description']} @ {t['location']}")
-        print(f"      Reason: {t['zscore_reason']}")
 
-    # === Method 2: IQR ===
     print(f"\n[Method 2] IQR Detection (multiplier=1.5)")
     print("-" * 60)
     iqr = detector.detect_iqr(trip_id)
     flagged_iq = [t for t in iqr if t["is_anomaly_iqr"]]
     print(f"  Flagged: {len(flagged_iq)} / {len(iqr)} transactions")
-    if iqr:
-        bounds = iqr[0]["iqr_bounds"]
-        print(f"  Q1=NT${bounds['q1']:,} Q3=NT${bounds['q3']:,} IQR=NT${bounds['iqr']:,}")
-        print(f"  Bounds: [NT${bounds['lower']:,} ~ NT${bounds['upper']:,}]")
-    for t in flagged_iq:
-        print(f"    txn#{t['txn_id']} NT${t['amount_twd']:,} - {t['description']}")
 
-    # === Method 3: Isolation Forest ===
-    print(f"\n[Method 3] Isolation Forest (contamination=0.1)")
-    print("-" * 60)
-    iso = detector.detect_isolation_forest(trip_id)
-    flagged_if = [t for t in iso if t["is_anomaly_if"]]
-    print(f"  Flagged: {len(flagged_if)} / {len(iso)} transactions")
-    for t in flagged_if:
-        print(f"    txn#{t['txn_id']} NT${t['amount_twd']:,} score={t['if_score']:.4f}")
-        print(f"      {t['description']} @ {t['location']}")
-
-    # === Combined ===
     print(f"\n[Combined] Majority Vote (2/3 methods agree)")
     print("=" * 60)
     combined = detector.detect_all(trip_id)
     anomalies = [c for c in combined if c["is_anomaly"]]
     print(f"  Final anomalies: {len(anomalies)} / {len(combined)} transactions")
-    print(f"")
-
-    for c in combined[:10]:
-        marker = ">>> ANOMALY" if c["is_anomaly"] else "    normal"
-        methods = []
-        if c["is_anomaly_zscore"]: methods.append("Z")
-        if c["is_anomaly_iqr"]: methods.append("IQR")
-        if c["is_anomaly_if"]: methods.append("IF")
-        method_str = "+".join(methods) if methods else "-"
-
-        print(f"  {marker} | txn#{c['txn_id']:>2} | NT${c['amount_twd']:>6,} | "
-              f"{c['category']:4s} | {c['flags']}/3 [{method_str:>7s}] | {c['description']}")
-
-    # === Summary ===
-    print(f"\n\nSummary")
-    print("=" * 60)
-    summary = detector.get_anomaly_summary(trip_id)
-    print(f"  Total: {summary['total_transactions']} transactions")
-    print(f"  Anomalies: {summary['anomaly_count']} ({summary['anomaly_rate']}%)")
-    if summary["anomalies"]:
-        print(f"\n  Flagged transactions:")
-        for a in summary["anomalies"]:
-            print(f"    NT${a['amount_twd']:,} - {a['category']} - {a['description']}")
 
     print("\nDone!")
