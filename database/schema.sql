@@ -46,12 +46,12 @@ CREATE TABLE IF NOT EXISTS categories (
 );
 
 INSERT OR IGNORE INTO categories (category_name, icon, color_hex) VALUES
-    ('餐飲', '🍜', '#FF6B6B'),
-    ('交通', '🚃', '#4ECDC4'),
-    ('住宿', '🏨', '#45B7D1'),
-    ('購物', '🛍️', '#96CEB4'),
-    ('娛樂', '🎮', '#FFEAA7'),
-    ('其他', '📦', '#DFE6E9');
+    ('餐飲', 'food', '#FF6B6B'),
+    ('交通', 'transport', '#4ECDC4'),
+    ('住宿', 'lodging', '#45B7D1'),
+    ('購物', 'shopping', '#96CEB4'),
+    ('娛樂', 'entertainment', '#FFEAA7'),
+    ('其他', 'other', '#DFE6E9');
 
 CREATE TABLE IF NOT EXISTS transactions (
     txn_id          INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -100,7 +100,7 @@ def seed_all():
     cursor = conn.cursor()
 
     # 清除舊的種子資料（保留政府統計資料）
-    print("🗑️  清除舊的種子資料...")
+    print("清除舊的種子資料...")
     cursor.execute("DELETE FROM settlements")
     cursor.execute("DELETE FROM split_details")
     cursor.execute("DELETE FROM transactions")
@@ -109,7 +109,7 @@ def seed_all():
     cursor.execute("DELETE FROM users")
 
     # --- 1. 建立使用者 ---
-    print("👤 建立使用者...")
+    print("建立使用者...")
     user_ids = []
     for u in USERS:
         cursor.execute(
@@ -120,7 +120,7 @@ def seed_all():
         print(f"   {u['display_name']} (id={cursor.lastrowid})")
 
     # --- 2. 建立旅行 ---
-    print("✈️  建立旅行...")
+    print("建立旅行...")
     cursor.execute("""
         INSERT INTO trips (user_id, trip_name, destination, currency_code,
                           start_date, end_date, total_budget, status)
@@ -134,7 +134,7 @@ def seed_all():
     print(f"   {TRIP['trip_name']} (id={trip_id})")
 
     # --- 3. 加入旅行成員 ---
-    print("👥 加入旅行成員...")
+    print("加入旅行成員...")
     for uid, u in zip(user_ids, USERS):
         cursor.execute(
             "INSERT INTO trip_members (trip_id, user_id, nickname) VALUES (?, ?, ?)",
@@ -142,7 +142,7 @@ def seed_all():
         )
 
     # --- 4. 建立交易紀錄 + 分帳 ---
-    print("💰 建立交易紀錄與分帳...")
+    print("建立交易紀錄與分帳...")
     start_date = datetime(2025, 3, 15)
     txn_count = 0
     split_count = 0
@@ -194,10 +194,10 @@ def seed_all():
                 """, (txn_id, user_ids[uid_idx], share_jpy, share_twd, ratio, 1))
                 split_count += 1
 
-    print(f"   ✅ {txn_count} 筆交易, {split_count} 筆分帳明細")
+    print(f"   {txn_count} 筆交易, {split_count} 筆分帳明細")
 
     # --- 5. 計算最終結算 ---
-    print("🧮 計算最終結算...")
+    print("計算最終結算...")
     settlements = calculate_settlements(cursor, trip_id, user_ids)
     for s in settlements:
         cursor.execute("""
@@ -209,11 +209,11 @@ def seed_all():
             s["amount_twd"], JPY_TO_TWD, "completed",
             "2025-03-20 12:00:00"
         ))
-    print(f"   ✅ {len(settlements)} 筆結算紀錄")
+    print(f"   {len(settlements)} 筆結算紀錄")
 
     conn.commit()
     conn.close()
-    print(f"\n🎉 種子資料生成完成！")
+    print("\n種子資料生成完成！")
 
 
 def calculate_settlements(cursor, trip_id, user_ids):
@@ -251,7 +251,7 @@ def calculate_settlements(cursor, trip_id, user_ids):
     print("   --- 淨餘額（正=被欠, 負=欠人）---")
     for uid, balance in balances.items():
         twd = round(balance * JPY_TO_TWD)
-        symbol = "💚 被欠" if balance > 0 else "🔴 欠人"
+        symbol = "被欠" if balance > 0 else "欠人"
         print(f"   {names[uid]}: ¥{balance:,.0f} (NT${twd:,}) {symbol}")
 
     # 貪心演算法：最小化轉帳次數
@@ -277,7 +277,7 @@ def calculate_settlements(cursor, trip_id, user_ids):
             "amount_jpy": round(amount),
             "amount_twd": round(amount * JPY_TO_TWD),
         })
-        print(f"   💸 {names[debtor_id]} → {names[creditor_id]}: ¥{amount:,.0f} (NT${round(amount * JPY_TO_TWD):,})")
+        print(f"   {names[debtor_id]} -> {names[creditor_id]}: ¥{amount:,.0f} (NT${round(amount * JPY_TO_TWD):,})")
 
         creditors[i] = (creditor_id, credit - amount)
         debtors[j] = (debtor_id, debt - amount)
@@ -297,7 +297,7 @@ def verify_seed_data():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    print("\n📊 種子資料驗證")
+    print("\n種子資料驗證")
     print("=" * 50)
 
     cursor.execute("SELECT COUNT(*) FROM users")
@@ -316,7 +316,7 @@ def verify_seed_data():
     print(f"結算紀錄: {cursor.fetchone()[0]} 筆")
 
     # 各類別消費統計
-    print("\n📈 各類別消費（日圓）")
+    print("\n各類別消費（日圓）")
     print("-" * 40)
     cursor.execute("""
         SELECT category, COUNT(*) as cnt, SUM(amount) as total_jpy, SUM(amount_twd) as total_twd
@@ -327,7 +327,7 @@ def verify_seed_data():
         print(f"  {row[0]}: {row[1]} 筆, ¥{row[2]:,.0f} (NT${row[3]:,})")
 
     # 各人代墊統計
-    print("\n💳 各人代墊金額")
+    print("\n各人代墊金額")
     print("-" * 40)
     cursor.execute("""
         SELECT u.display_name, COUNT(*) as cnt, SUM(t.amount) as paid_jpy, SUM(t.amount_twd) as paid_twd
@@ -344,7 +344,7 @@ def verify_seed_data():
 # === 主程式 ===
 
 if __name__ == "__main__":
-    print("🧳 TravelWallet - 種子資料生成")
+    print("TravelWallet - 種子資料生成")
     print("=" * 40)
 
     random.seed(42)   # 固定隨機種子，確保每次結果一致
