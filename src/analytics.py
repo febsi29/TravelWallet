@@ -11,6 +11,7 @@ Features:
 
 import sqlite3
 import os
+from contextlib import contextmanager
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
@@ -21,62 +22,69 @@ class Analytics:
     def __init__(self, db_path=None):
         self.db_path = db_path or DB_PATH
 
-    def _connect(self):
-        return sqlite3.connect(self.db_path)
-
-    def personal_vs_national(self, trip_id):
-        conn = self._connect()
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            SELECT t.start_date, t.end_date, t.destination,
-                   julianday(t.end_date) - julianday(t.start_date) + 1 AS days
-            FROM trips t WHERE t.trip_id = ?
-        """, (trip_id,))
-        trip = cursor.fetchone()
-        if not trip:
+    @contextmanager
+    def _db(self):
+        conn = sqlite3.connect(self.db_path)
+        try:
+            yield conn, conn.cursor()
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
             conn.close()
-            raise ValueError(f"Trip ID={trip_id} not found")
 
-        start_date, end_date, destination, trip_days = trip
+    def personal_vs_national(self, trip_id: int) -> dict:
+        if not isinstance(trip_id, int) or trip_id <= 0:
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
-        cursor.execute("""
-            SELECT COUNT(*), COALESCE(SUM(amount_twd), 0)
-            FROM transactions WHERE trip_id = ?
-        """, (trip_id,))
-        txn_count, total_twd = cursor.fetchone()
-
-        cursor.execute("SELECT COUNT(*) FROM trip_members WHERE trip_id = ?", (trip_id,))
-        num_members = cursor.fetchone()[0]
-
-        per_person_total = round(total_twd / num_members) if num_members > 0 else total_twd
-        per_person_daily = round(per_person_total / trip_days) if trip_days > 0 else 0
-
-        trip_year = int(start_date[:4])
-        cursor.execute("""
-            SELECT avg_spending_twd, avg_stay_nights
-            FROM gov_outbound_stats
-            WHERE year = ? AND avg_spending_twd IS NOT NULL
-        """, (trip_year,))
-        gov = cursor.fetchone()
-
-        if not gov:
+        with self._db() as (conn, cursor):
             cursor.execute("""
-                SELECT avg_spending_twd, avg_stay_nights, year
+                SELECT t.start_date, t.end_date, t.destination,
+                       julianday(t.end_date) - julianday(t.start_date) + 1 AS days
+                FROM trips t WHERE t.trip_id = ?
+            """, (trip_id,))
+            trip = cursor.fetchone()
+            if not trip:
+                raise ValueError(f"Trip ID={trip_id} not found")
+
+            start_date, end_date, destination, trip_days = trip
+
+            cursor.execute("""
+                SELECT COUNT(*), COALESCE(SUM(amount_twd), 0)
+                FROM transactions WHERE trip_id = ?
+            """, (trip_id,))
+            txn_count, total_twd = cursor.fetchone()
+
+            cursor.execute("SELECT COUNT(*) FROM trip_members WHERE trip_id = ?", (trip_id,))
+            num_members = cursor.fetchone()[0]
+
+            per_person_total = round(total_twd / num_members) if num_members > 0 else total_twd
+            per_person_daily = round(per_person_total / trip_days) if trip_days > 0 else 0
+
+            trip_year = int(start_date[:4])
+            cursor.execute("""
+                SELECT avg_spending_twd, avg_stay_nights
                 FROM gov_outbound_stats
-                WHERE avg_spending_twd IS NOT NULL
-                ORDER BY year DESC LIMIT 1
-            """)
-            row = cursor.fetchone()
-            if row:
-                gov = (row[0], row[1])
-                trip_year = row[2]
+                WHERE year = ? AND avg_spending_twd IS NOT NULL
+            """, (trip_year,))
+            gov = cursor.fetchone()
+
+            if not gov:
+                cursor.execute("""
+                    SELECT avg_spending_twd, avg_stay_nights, year
+                    FROM gov_outbound_stats
+                    WHERE avg_spending_twd IS NOT NULL
+                    ORDER BY year DESC LIMIT 1
+                """)
+                row = cursor.fetchone()
+                if row:
+                    gov = (row[0], row[1])
+                    trip_year = row[2]
 
         national_total = gov[0] if gov else 0
         national_nights = gov[1] if gov else 1
         national_daily = round(national_total / national_nights) if national_nights > 0 else 0
-
-        conn.close()
 
         diff_total = per_person_total - national_total
         diff_pct = round((per_person_total / national_total - 1) * 100, 1) if national_total > 0 else 0
@@ -114,25 +122,27 @@ class Analytics:
             },
         }
 
-    def category_analysis(self, trip_id):
-        conn = self._connect()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT category, COUNT(*), SUM(amount), SUM(amount_twd)
-            FROM transactions WHERE trip_id = ?
-            GROUP BY category ORDER BY SUM(amount_twd) DESC
-        """, (trip_id,))
-        rows = cursor.fetchall()
-        cursor.execute("SELECT SUM(amount_twd) FROM transactions WHERE trip_id = ?", (trip_id,))
-        grand_total = cursor.fetchone()[0] or 1
-        conn.close()
+    def category_analysis(self, trip_id: int) -> list:
+        if not isinstance(trip_id, int) or trip_id <= 0:
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
+
+        with self._db() as (conn, cursor):
+            cursor.execute("""
+                SELECT category, COUNT(*), SUM(amount), SUM(amount_twd)
+                FROM transactions WHERE trip_id = ?
+                GROUP BY category ORDER BY SUM(amount_twd) DESC
+            """, (trip_id,))
+            rows = cursor.fetchall()
+            cursor.execute("SELECT SUM(amount_twd) FROM transactions WHERE trip_id = ?", (trip_id,))
+            grand_total = cursor.fetchone()[0] or 1
+
         return [
             {"category": r[0], "count": r[1], "total_original": r[2],
              "total_twd": r[3], "percentage": round(r[3] / grand_total * 100, 1)}
             for r in rows
         ]
 
-    def category_vs_national(self, trip_id):
+    def category_vs_national(self, trip_id: int) -> list:
         national_ratios = {
             "住宿": 28.0, "餐飲": 25.0, "交通": 18.0,
             "購物": 18.0, "娛樂": 6.0, "其他": 5.0,
@@ -155,16 +165,18 @@ class Analytics:
             })
         return comparison
 
-    def daily_spending(self, trip_id):
-        conn = self._connect()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT DATE(txn_datetime) AS day, COUNT(*), SUM(amount_twd)
-            FROM transactions WHERE trip_id = ?
-            GROUP BY DATE(txn_datetime) ORDER BY day
-        """, (trip_id,))
-        rows = cursor.fetchall()
-        conn.close()
+    def daily_spending(self, trip_id: int) -> list:
+        if not isinstance(trip_id, int) or trip_id <= 0:
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
+
+        with self._db() as (conn, cursor):
+            cursor.execute("""
+                SELECT DATE(txn_datetime) AS day, COUNT(*), SUM(amount_twd)
+                FROM transactions WHERE trip_id = ?
+                GROUP BY DATE(txn_datetime) ORDER BY day
+            """, (trip_id,))
+            rows = cursor.fetchall()
+
         cumulative = 0
         result = []
         for i, r in enumerate(rows, 1):
@@ -175,62 +187,65 @@ class Analytics:
             })
         return result
 
-    def split_behavior(self, trip_id):
-        conn = self._connect()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT u.display_name, COUNT(*), SUM(t.amount_twd)
-            FROM transactions t JOIN users u ON t.paid_by = u.user_id
-            WHERE t.trip_id = ?
-            GROUP BY t.paid_by ORDER BY SUM(t.amount_twd) DESC
-        """, (trip_id,))
-        payer_ranking = [{"name": r[0], "times": r[1], "total_twd": r[2]} for r in cursor.fetchall()]
+    def split_behavior(self, trip_id: int) -> dict:
+        if not isinstance(trip_id, int) or trip_id <= 0:
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
-        cursor.execute("""
-            SELECT u.display_name, SUM(sd.share_twd)
-            FROM split_details sd
-            JOIN users u ON sd.user_id = u.user_id
-            JOIN transactions t ON sd.txn_id = t.txn_id
-            WHERE t.trip_id = ?
-            GROUP BY sd.user_id ORDER BY SUM(sd.share_twd) DESC
-        """, (trip_id,))
-        share_ranking = [{"name": r[0], "total_twd": r[1]} for r in cursor.fetchall()]
+        with self._db() as (conn, cursor):
+            cursor.execute("""
+                SELECT u.display_name, COUNT(*), SUM(t.amount_twd)
+                FROM transactions t JOIN users u ON t.paid_by = u.user_id
+                WHERE t.trip_id = ?
+                GROUP BY t.paid_by ORDER BY SUM(t.amount_twd) DESC
+            """, (trip_id,))
+            payer_ranking = [{"name": r[0], "times": r[1], "total_twd": r[2]} for r in cursor.fetchall()]
 
-        cursor.execute("""
-            SELECT u.display_name, t.category, SUM(sd.share_twd)
-            FROM split_details sd
-            JOIN users u ON sd.user_id = u.user_id
-            JOIN transactions t ON sd.txn_id = t.txn_id
-            WHERE t.trip_id = ?
-            GROUP BY sd.user_id, t.category
-            ORDER BY u.display_name, SUM(sd.share_twd) DESC
-        """, (trip_id,))
-        per_person_category = {}
-        for r in cursor.fetchall():
-            name, cat, total = r
-            if name not in per_person_category:
-                per_person_category[name] = {}
-            per_person_category[name][cat] = total
+            cursor.execute("""
+                SELECT u.display_name, SUM(sd.share_twd)
+                FROM split_details sd
+                JOIN users u ON sd.user_id = u.user_id
+                JOIN transactions t ON sd.txn_id = t.txn_id
+                WHERE t.trip_id = ?
+                GROUP BY sd.user_id ORDER BY SUM(sd.share_twd) DESC
+            """, (trip_id,))
+            share_ranking = [{"name": r[0], "total_twd": r[1]} for r in cursor.fetchall()]
 
-        conn.close()
+            cursor.execute("""
+                SELECT u.display_name, t.category, SUM(sd.share_twd)
+                FROM split_details sd
+                JOIN users u ON sd.user_id = u.user_id
+                JOIN transactions t ON sd.txn_id = t.txn_id
+                WHERE t.trip_id = ?
+                GROUP BY sd.user_id, t.category
+                ORDER BY u.display_name, SUM(sd.share_twd) DESC
+            """, (trip_id,))
+            per_person_category: dict = {}
+            for r in cursor.fetchall():
+                name, cat, total = r
+                if name not in per_person_category:
+                    per_person_category[name] = {}
+                per_person_category[name][cat] = total
+
         return {
             "payer_ranking": payer_ranking,
             "share_ranking": share_ranking,
             "per_person_category": per_person_category,
         }
 
-    def payment_analysis(self, trip_id):
-        conn = self._connect()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT payment_method, COUNT(*), SUM(amount_twd)
-            FROM transactions WHERE trip_id = ?
-            GROUP BY payment_method ORDER BY SUM(amount_twd) DESC
-        """, (trip_id,))
-        rows = cursor.fetchall()
-        cursor.execute("SELECT SUM(amount_twd) FROM transactions WHERE trip_id = ?", (trip_id,))
-        grand_total = cursor.fetchone()[0] or 1
-        conn.close()
+    def payment_analysis(self, trip_id: int) -> list:
+        if not isinstance(trip_id, int) or trip_id <= 0:
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
+
+        with self._db() as (conn, cursor):
+            cursor.execute("""
+                SELECT payment_method, COUNT(*), SUM(amount_twd)
+                FROM transactions WHERE trip_id = ?
+                GROUP BY payment_method ORDER BY SUM(amount_twd) DESC
+            """, (trip_id,))
+            rows = cursor.fetchall()
+            cursor.execute("SELECT SUM(amount_twd) FROM transactions WHERE trip_id = ?", (trip_id,))
+            grand_total = cursor.fetchone()[0] or 1
+
         labels = {"cash": "現金", "credit_card": "信用卡", "mobile_pay": "行動支付"}
         return [
             {"method": labels.get(r[0], r[0]), "count": r[1],
@@ -238,7 +253,7 @@ class Analytics:
             for r in rows
         ]
 
-    def full_report(self, trip_id):
+    def full_report(self, trip_id: int) -> dict:
         return {
             "personal_vs_national": self.personal_vs_national(trip_id),
             "category_analysis": self.category_analysis(trip_id),
@@ -256,7 +271,6 @@ if __name__ == "__main__":
     ana = Analytics()
     trip_id = 1
 
-    # 1. Personal vs National
     print("\n[1] Personal vs National Average")
     print("=" * 55)
     pvn = ana.personal_vs_national(trip_id)
@@ -267,50 +281,11 @@ if __name__ == "__main__":
 
     print(f"  Trip: {t['destination']} {t['days']} days, {t['members']} people")
     print(f"  Period: {t['start_date']} ~ {t['end_date']}")
-    print(f"")
     print(f"  {'':15s} {'Your Trip':>12s} {'National':>12s} {'Diff':>10s}")
     print(f"  {'-'*50}")
     print(f"  {'Per Person':15s} NT${p['per_person_total']:>8,} NT${n['avg_total']:>8,.0f} {c['diff_total']:>+8,.0f}")
     print(f"  {'Daily':15s} NT${p['per_person_daily']:>8,} NT${n['avg_daily']:>8,} {c['diff_daily']:>+8,}")
     print(f"  {'Days':15s} {t['days']:>10} {n['avg_nights']:>12.1f}")
-    print(f"")
-    print(f"  Diff: {c['diff_pct']:+.1f}%")
-    print(f"  Verdict: {c['verdict']}")
-
-    # 2. Category Comparison
-    print(f"\n\n[2] Category - Personal vs National")
-    print("=" * 55)
-    cat_comp = ana.category_vs_national(trip_id)
-    print(f"  {'Category':8s} {'Personal':>10s} {'National':>10s} {'Diff':>8s} {'Status'}")
-    print(f"  {'-'*48}")
-    for item in cat_comp:
-        print(f"  {item['category']:8s} {item['personal_pct']:>9.1f}% {item['national_pct']:>9.1f}% {item['diff']:>+7.1f}%  {item['status']}")
-
-    # 3. Daily Spending
-    print(f"\n\n[3] Daily Spending Trend")
-    print("=" * 55)
-    daily = ana.daily_spending(trip_id)
-    for d in daily:
-        bar = "#" * int(d["daily_twd"] / 500)
-        print(f"  Day {d['day']} ({d['date']}): NT${d['daily_twd']:>7,.0f} | Total NT${d['cumulative_twd']:>7,.0f} {bar}")
-
-    # 4. Split Behavior
-    print(f"\n\n[4] Split Behavior")
-    print("=" * 55)
-    split = ana.split_behavior(trip_id)
-    print("  Payer Ranking:")
-    for item in split["payer_ranking"]:
-        print(f"    {item['name']}: {item['times']} times, NT${item['total_twd']:,.0f}")
-    print(f"\n  Actual Share:")
-    for s in split["share_ranking"]:
-        print(f"    {s['name']}: NT${s['total_twd']:,.0f}")
-
-    # 5. Payment Method
-    print(f"\n\n[5] Payment Method")
-    print("=" * 55)
-    payments = ana.payment_analysis(trip_id)
-    for item in payments:
-        bar = "#" * int(item["percentage"] / 3)
-        print(f"  {item['method']}: {item['count']} txns, NT${item['total_twd']:,.0f} ({item['percentage']}%) {bar}")
+    print(f"  Diff: {c['diff_pct']:+.1f}%  Verdict: {c['verdict']}")
 
     print("\nDone!")

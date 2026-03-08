@@ -16,14 +16,15 @@ currency.py - 匯率處理模組
 
 import sqlite3
 import os
-import json
-from datetime import datetime, date
+from contextlib import contextmanager
+from datetime import date
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
-API_KEY = os.environ.get("EXCHANGE_RATE_API_KEY", "25ec30371d18bef1381e423c")
-API_URL = f"https://v6.exchangerate-api.com/v6/{API_KEY}/latest/USD"
+# API Key 必須透過環境變數設定，絕不在程式碼中硬編碼
+API_KEY = os.environ.get("EXCHANGE_RATE_API_KEY", "")
+API_URL = f"https://v6.exchangerate-api.com/v6/{API_KEY}/latest/USD" if API_KEY else ""
 
 # 台灣人常去的旅遊目的地幣別
 COMMON_CURRENCIES = {
@@ -65,21 +66,33 @@ class CurrencyManager:
     def __init__(self, db_path=None):
         self.db_path = db_path or DB_PATH
 
-    def _connect(self):
-        return sqlite3.connect(self.db_path)
+    @contextmanager
+    def _db(self):
+        conn = sqlite3.connect(self.db_path)
+        try:
+            yield conn, conn.cursor()
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     # ============================================================
     #  即時匯率
     # ============================================================
 
-    def fetch_live_rates(self):
+    def fetch_live_rates(self) -> dict | None:
         """
         從 ExchangeRate-API 取得即時匯率（以 TWD 為基準）
 
         回傳：
-            dict: {幣別代碼: 匯率}，例如 {"JPY": 4.61, "USD": 0.031}
-            匯率含義：1 TWD 可以換多少外幣
+            dict: {幣別代碼: 匯率}，匯率含義：1 TWD 可以換多少外幣
         """
+        if not API_KEY:
+            print("未設定 EXCHANGE_RATE_API_KEY 環境變數，使用離線匯率")
+            return None
+
         try:
             import requests
             response = requests.get(API_URL, timeout=10)
@@ -91,23 +104,21 @@ class CurrencyManager:
                 rates = {}
                 for code in COMMON_CURRENCIES:
                     if code in usd_rates:
-                        # 1 TWD = (1 USD / TWD_per_USD) * 外幣_per_USD
                         rates[code] = round(usd_rates[code] / twd_per_usd, 6)
-                print(f"✅ 取得即時匯率: {len(rates)} 個幣別 (1 USD = {twd_per_usd} TWD)")
+                print(f"取得即時匯率: {len(rates)} 個幣別 (1 USD = {twd_per_usd} TWD)")
                 return rates
-
             else:
-                print(f"⚠️ API 回傳錯誤: {data.get('error-type', 'unknown')}")
+                print(f"API 回傳錯誤: {data.get('error-type', 'unknown')}")
                 return None
 
         except ImportError:
-            print("⚠️ 未安裝 requests 套件，使用離線匯率")
+            print("未安裝 requests 套件，使用離線匯率")
             return None
         except Exception as e:
-            print(f"⚠️ API 連線失敗: {e}")
+            print(f"API 連線失敗: {e}")
             return None
 
-    def get_rate(self, target_currency, use_date=None):
+    def get_rate(self, target_currency: str, use_date: str = None) -> float:
         """
         取得 TWD 對某幣別的匯率
 
@@ -123,33 +134,31 @@ class CurrencyManager:
         回傳：
             float: 匯率（1 TWD = ? 外幣）
         """
+        if not target_currency or not isinstance(target_currency, str):
+            raise ValueError(f"target_currency 必須為非空字串，收到: {target_currency!r}")
+
         target_currency = target_currency.upper()
         if use_date is None:
             use_date = date.today().isoformat()
 
-        # 1. 先查資料庫
-        conn = self._connect()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT rate FROM exchange_rates
-            WHERE target_currency = ? AND recorded_date = ?
-        """, (target_currency, use_date))
-        row = cursor.fetchone()
-        conn.close()
+        with self._db() as (conn, cursor):
+            cursor.execute("""
+                SELECT rate FROM exchange_rates
+                WHERE target_currency = ? AND recorded_date = ?
+            """, (target_currency, use_date))
+            row = cursor.fetchone()
 
         if row:
             return row[0]
 
-        # 2. 嘗試 API
         rates = self.fetch_live_rates()
         if rates and target_currency in rates:
             rate = rates[target_currency]
             self.save_rate(target_currency, rate, use_date)
             return rate
 
-        # 3. 備用匯率
         if target_currency in FALLBACK_RATES:
-            print(f"📌 使用備用匯率: 1 TWD = {FALLBACK_RATES[target_currency]} {target_currency}")
+            print(f"使用備用匯率: 1 TWD = {FALLBACK_RATES[target_currency]} {target_currency}")
             return FALLBACK_RATES[target_currency]
 
         raise ValueError(f"找不到 {target_currency} 的匯率")
@@ -158,7 +167,7 @@ class CurrencyManager:
     #  幣別換算
     # ============================================================
 
-    def convert(self, amount, from_currency, to_currency, rate=None):
+    def convert(self, amount: float, from_currency: str, to_currency: str, rate: float = None) -> dict:
         """
         幣別換算
 
@@ -170,96 +179,82 @@ class CurrencyManager:
 
         回傳：
             dict: {"amount": 換算後金額, "rate": 使用的匯率}
-
-        範例：
-            convert(10000, "JPY", "TWD")  → 約 NT$2,170
-            convert(5000, "TWD", "JPY")   → 約 ¥23,050
         """
+        if amount < 0:
+            raise ValueError(f"amount 不可為負數，收到: {amount}")
+        if not from_currency or not isinstance(from_currency, str):
+            raise ValueError(f"from_currency 必須為非空字串，收到: {from_currency!r}")
+        if not to_currency or not isinstance(to_currency, str):
+            raise ValueError(f"to_currency 必須為非空字串，收到: {to_currency!r}")
+
         from_currency = from_currency.upper()
         to_currency = to_currency.upper()
 
         if from_currency == to_currency:
             return {"amount": amount, "rate": 1.0}
 
-        if rate is None:
-            if from_currency == "TWD":
-                # TWD → 外幣：直接用匯率乘
-                r = self.get_rate(to_currency)
-                result = round(amount * r, 2)
-                return {"amount": result, "rate": r}
-            elif to_currency == "TWD":
-                # 外幣 → TWD：用匯率除
-                r = self.get_rate(from_currency)
-                result = round(amount / r, 2)
-                return {"amount": result, "rate": round(1 / r, 6)}
-            else:
-                # 外幣 → 外幣：先轉 TWD 再轉目標幣
-                r_from = self.get_rate(from_currency)
-                r_to = self.get_rate(to_currency)
-                twd_amount = amount / r_from
-                result = round(twd_amount * r_to, 2)
-                cross_rate = round(r_to / r_from, 6)
-                return {"amount": result, "rate": cross_rate}
-        else:
+        if rate is not None:
             return {"amount": round(amount * rate, 2), "rate": rate}
 
-    def quick_convert(self, amount, from_currency, to_currency="TWD"):
-        """
-        快速換算，只回傳金額
+        if from_currency == "TWD":
+            r = self.get_rate(to_currency)
+            return {"amount": round(amount * r, 2), "rate": r}
+        elif to_currency == "TWD":
+            r = self.get_rate(from_currency)
+            return {"amount": round(amount / r, 2), "rate": round(1 / r, 6)}
+        else:
+            r_from = self.get_rate(from_currency)
+            r_to = self.get_rate(to_currency)
+            twd_amount = amount / r_from
+            return {"amount": round(twd_amount * r_to, 2), "rate": round(r_to / r_from, 6)}
 
-        範例：
-            quick_convert(10000, "JPY") → 2170.0
-        """
-        result = self.convert(amount, from_currency, to_currency)
-        return result["amount"]
+    def quick_convert(self, amount: float, from_currency: str, to_currency: str = "TWD") -> float:
+        """快速換算，只回傳金額"""
+        return self.convert(amount, from_currency, to_currency)["amount"]
 
     # ============================================================
     #  匯率儲存與歷史查詢
     # ============================================================
 
-    def save_rate(self, target_currency, rate, recorded_date=None):
+    def save_rate(self, target_currency: str, rate: float, recorded_date: str = None) -> None:
         """儲存匯率到資料庫"""
+        if not target_currency or not isinstance(target_currency, str):
+            raise ValueError(f"target_currency 必須為非空字串，收到: {target_currency!r}")
+        if rate <= 0:
+            raise ValueError(f"rate 必須大於 0，收到: {rate}")
+
         if recorded_date is None:
             recorded_date = date.today().isoformat()
 
-        conn = self._connect()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT OR REPLACE INTO exchange_rates
-            (base_currency, target_currency, rate, recorded_date, source)
-            VALUES ('TWD', ?, ?, ?, 'ExchangeRate-API')
-        """, (target_currency, rate, recorded_date))
-        conn.commit()
-        conn.close()
+        with self._db() as (conn, cursor):
+            cursor.execute("""
+                INSERT OR REPLACE INTO exchange_rates
+                (base_currency, target_currency, rate, recorded_date, source)
+                VALUES ('TWD', ?, ?, ?, 'ExchangeRate-API')
+            """, (target_currency, rate, recorded_date))
 
-    def save_all_rates(self, rates, recorded_date=None):
+    def save_all_rates(self, rates: dict, recorded_date: str = None) -> None:
         """批次儲存多個幣別的匯率"""
         for currency, rate in rates.items():
             self.save_rate(currency, rate, recorded_date)
-        print(f"💾 儲存 {len(rates)} 個幣別匯率")
+        print(f"儲存 {len(rates)} 個幣別匯率")
 
-    def get_rate_history(self, target_currency, days=30):
-        """
-        查詢某幣別的歷史匯率
+    def get_rate_history(self, target_currency: str, days: int = 30) -> list:
+        """查詢某幣別的歷史匯率"""
+        if not target_currency or not isinstance(target_currency, str):
+            raise ValueError(f"target_currency 必須為非空字串，收到: {target_currency!r}")
+        if not isinstance(days, int) or days <= 0:
+            raise ValueError(f"days 必須為正整數，收到: {days!r}")
 
-        參數：
-            target_currency: 幣別代碼
-            days: 查詢最近幾天
-
-        回傳：
-            list[dict]: [{"date": "2025-03-01", "rate": 4.61}, ...]
-        """
-        conn = self._connect()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT recorded_date, rate
-            FROM exchange_rates
-            WHERE target_currency = ?
-            ORDER BY recorded_date DESC
-            LIMIT ?
-        """, (target_currency, days))
-        rows = cursor.fetchall()
-        conn.close()
+        with self._db() as (conn, cursor):
+            cursor.execute("""
+                SELECT recorded_date, rate
+                FROM exchange_rates
+                WHERE target_currency = ?
+                ORDER BY recorded_date DESC
+                LIMIT ?
+            """, (target_currency, days))
+            rows = cursor.fetchall()
 
         return [{"date": r[0], "rate": r[1]} for r in reversed(rows)]
 
@@ -267,91 +262,45 @@ class CurrencyManager:
     #  工具函式
     # ============================================================
 
-    def get_currency_info(self, currency_code):
+    def get_currency_info(self, currency_code: str) -> dict:
         """取得幣別的中文名稱、符號等資訊"""
         code = currency_code.upper()
-        if code in COMMON_CURRENCIES:
-            return COMMON_CURRENCIES[code]
-        return {"name": code, "symbol": code, "country": "未知"}
+        return COMMON_CURRENCIES.get(code, {"name": code, "symbol": code, "country": "未知"})
 
-    def format_amount(self, amount, currency_code):
-        """
-        格式化金額顯示
-
-        範例：
-            format_amount(10000, "JPY") → "¥10,000"
-            format_amount(2170, "TWD") → "NT$2,170"
-        """
+    def format_amount(self, amount: float, currency_code: str) -> str:
+        """格式化金額顯示"""
         info = self.get_currency_info(currency_code)
-        if currency_code == "TWD":
+        if currency_code.upper() == "TWD":
             return f"NT${amount:,.0f}"
         return f"{info['symbol']}{amount:,.0f}"
 
-    def list_currencies(self):
+    def list_currencies(self) -> dict:
         """列出所有支援的幣別"""
         return COMMON_CURRENCIES.copy()
 
 
-# ============================================================
-#  測試 / Demo
-# ============================================================
-
 if __name__ == "__main__":
-    print("🧳 TravelWallet - 匯率模組測試")
+    print("TravelWallet - 匯率模組測試")
     print("=" * 50)
 
     cm = CurrencyManager()
 
-    # --- 支援幣別 ---
-    print("\n🌍 支援幣別:")
-    print("-" * 40)
+    print("\n支援幣別:")
     for code, info in COMMON_CURRENCIES.items():
         print(f"  {info['symbol']} {code} - {info['name']} ({info['country']})")
 
-    # --- 匯率查詢（使用備用匯率） ---
-    print("\n💱 匯率查詢（備用離線匯率）:")
-    print("-" * 40)
+    print("\n匯率查詢（備用離線匯率）:")
     for code in ["JPY", "USD", "KRW", "THB", "EUR"]:
         rate = cm.get_rate(code)
         info = cm.get_currency_info(code)
-        # 1 TWD = rate 外幣，所以 1 外幣 = 1/rate TWD
         twd_per_unit = round(1 / rate, 2)
         print(f"  {info['name']}({code}): 1 TWD = {rate} {code} | 1 {code} = NT${twd_per_unit}")
 
-    # --- 幣別換算 ---
-    print("\n🔄 幣別換算範例:")
-    print("-" * 40)
-
-    # 日圓 → 台幣
+    print("\n幣別換算範例:")
     result = cm.convert(10000, "JPY", "TWD")
-    print(f"  ¥10,000 = NT${result['amount']:,.0f}")
-
-    # 台幣 → 日圓
+    print(f"  10,000 JPY = NT${result['amount']:,.0f}")
     result = cm.convert(5000, "TWD", "JPY")
-    print(f"  NT$5,000 = ¥{result['amount']:,.0f}")
+    print(f"  NT$5,000 = {result['amount']:,.0f} JPY")
 
-    # 美金 → 台幣
-    result = cm.convert(100, "USD", "TWD")
-    print(f"  $100 = NT${result['amount']:,.0f}")
-
-    # 韓元 → 台幣
-    result = cm.convert(50000, "KRW", "TWD")
-    print(f"  ₩50,000 = NT${result['amount']:,.0f}")
-
-    # --- 格式化顯示 ---
-    print("\n📝 格式化顯示:")
-    print("-" * 40)
-    print(f"  {cm.format_amount(10000, 'JPY')}")
-    print(f"  {cm.format_amount(2170, 'TWD')}")
-    print(f"  {cm.format_amount(100, 'USD')}")
-    print(f"  {cm.format_amount(50000, 'KRW')}")
-
-    # --- 儲存匯率到資料庫 ---
-    print("\n💾 儲存備用匯率到資料庫...")
     cm.save_all_rates(FALLBACK_RATES)
-
-    # --- 查詢歷史匯率 ---
-    history = cm.get_rate_history("JPY")
-    print(f"📈 JPY 歷史匯率紀錄: {len(history)} 筆")
-
-    print("\n🎉 匯率模組測試完成！")
+    print("\nDone!")
