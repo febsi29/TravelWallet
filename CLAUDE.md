@@ -50,3 +50,16 @@
 ### 認證授權
 - 絕不在程式碼中硬編碼密鑰
 - 必須使用環境變數儲存敏感資訊
+
+## Git 規範
+
+### 分支命名
+- `feature/功能描述`
+- `bugfix/問題描述`
+- `hotfix/緊急修復`
+
+### Commit 訊息
+```
+類型(範圍): 簡短描述
+```
+類型：`feat`、`fix`、`docs`、`style`、`refactor`、`perf`、`test`、`chore`
