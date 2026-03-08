@@ -7,6 +7,7 @@
 import pandas as pd
 import sqlite3
 import os
+from contextlib import closing
 
 
 # === 路徑設定 ===
@@ -108,53 +109,47 @@ def init_database():
     """
     根據 schema.sql 初始化資料庫
     """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         schema_sql = f.read()
 
-    cursor.executescript(schema_sql)
-    conn.commit()
-    conn.close()
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+        conn.executescript(schema_sql)
+        conn.commit()
     print(f"資料庫初始化完成: {DB_PATH}")
 
 
 def load_to_database(df):
     """
-    將清洗後的政府資料匯入 SQLite 的 gov_outbound_stats 表
+    將清洗後的政府資料匯入 SQLite 的 gov_outbound_stats 表（使用參數化查詢）
     """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
     inserted = 0
     skipped = 0
-    
-#parameterized query
-    for _, row in df.iterrows():
-        try:
-            cursor.execute("""
-                INSERT OR REPLACE INTO gov_outbound_stats
-                (year, total_outbound_trips, avg_stay_nights,
-                 avg_spending_twd, avg_spending_usd,
-                 total_spending_twd_100m, total_spending_usd_100m)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                int(row["year"]),
-                int(row["total_outbound_trips"]) if pd.notna(row["total_outbound_trips"]) else None,
-                float(row["avg_stay_nights"]) if pd.notna(row["avg_stay_nights"]) else None,
-                float(row["avg_spending_twd"]) if pd.notna(row["avg_spending_twd"]) else None,
-                float(row["avg_spending_usd"]) if pd.notna(row["avg_spending_usd"]) else None,
-                float(row["total_spending_twd_100m"]) if pd.notna(row["total_spending_twd_100m"]) else None,
-                float(row["total_spending_usd_100m"]) if pd.notna(row["total_spending_usd_100m"]) else None,
-            ))
-            inserted += 1
-        except Exception as e:
-            print(f"跳過 {row['year']}: {e}")
-            skipped += 1
 
-    conn.commit()
-    conn.close()
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+        cursor = conn.cursor()
+        for _, row in df.iterrows():
+            try:
+                cursor.execute("""
+                    INSERT OR REPLACE INTO gov_outbound_stats
+                    (year, total_outbound_trips, avg_stay_nights,
+                     avg_spending_twd, avg_spending_usd,
+                     total_spending_twd_100m, total_spending_usd_100m)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    int(row["year"]),
+                    int(row["total_outbound_trips"]) if pd.notna(row["total_outbound_trips"]) else None,
+                    float(row["avg_stay_nights"]) if pd.notna(row["avg_stay_nights"]) else None,
+                    float(row["avg_spending_twd"]) if pd.notna(row["avg_spending_twd"]) else None,
+                    float(row["avg_spending_usd"]) if pd.notna(row["avg_spending_usd"]) else None,
+                    float(row["total_spending_twd_100m"]) if pd.notna(row["total_spending_twd_100m"]) else None,
+                    float(row["total_spending_usd_100m"]) if pd.notna(row["total_spending_usd_100m"]) else None,
+                ))
+                inserted += 1
+            except sqlite3.Error as e:
+                print(f"跳過 {row['year']}: {e}")
+                skipped += 1
+        conn.commit()
+
     print(f"匯入資料庫完成: {inserted} 筆成功, {skipped} 筆跳過")
 
 
@@ -162,9 +157,8 @@ def verify_database():
     """
     驗證資料庫內容
     """
-    conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query("SELECT * FROM gov_outbound_stats ORDER BY year", conn)
-    conn.close()
+    with closing(sqlite3.connect(DB_PATH)) as conn:
+        df = pd.read_sql_query("SELECT * FROM gov_outbound_stats ORDER BY year", conn)
 
     print(f"\n資料庫驗證 — gov_outbound_stats ({len(df)} 筆)")
     print("=" * 70)
