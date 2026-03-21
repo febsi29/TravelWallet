@@ -43,7 +43,7 @@ class AnomalyDetector:
 
     def _get_transactions(self, trip_id: int) -> list:
         if not isinstance(trip_id, int) or trip_id <= 0:
-            raise ValueError(f"trip_id : {trip_id!r}")
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
             cursor.execute("""
@@ -71,7 +71,7 @@ class AnomalyDetector:
         If |Z| > threshold, it's anomalous.
         """
         if threshold <= 0:
-            raise ValueError(f"threshold  0: {threshold}")
+            raise ValueError(f"threshold 必須大於 0，收到: {threshold}")
 
         txns = self._get_transactions(trip_id)
         if not txns:
@@ -132,7 +132,7 @@ class AnomalyDetector:
         Upper bound = Q3 + multiplier * IQR
         """
         if multiplier <= 0:
-            raise ValueError(f"multiplier  0: {multiplier}")
+            raise ValueError(f"multiplier 必須大於 0，收到: {multiplier}")
 
         txns = self._get_transactions(trip_id)
         if not txns:
@@ -178,7 +178,7 @@ class AnomalyDetector:
         contamination: expected proportion of anomalies (default 10%)
         """
         if not 0 < contamination < 0.5:
-            raise ValueError(f"contamination  (0, 0.5) : {contamination}")
+            raise ValueError(f"contamination 必須在 (0, 0.5) 之間，收到: {contamination}")
 
         txns = self._get_transactions(trip_id)
         if not txns:
@@ -307,7 +307,7 @@ class AnomalyDetector:
 
     def get_anomaly_summary(self, trip_id: int) -> dict:
         if not isinstance(trip_id, int) or trip_id <= 0:
-            raise ValueError(f"trip_id : {trip_id!r}")
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
             cursor.execute("""

@@ -42,7 +42,7 @@ class BudgetManager:
 
     def _get_trip_info(self, trip_id: int) -> dict:
         if not isinstance(trip_id, int) or trip_id <= 0:
-            raise ValueError(f"trip_id : {trip_id!r}")
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
             cursor.execute("""
@@ -139,7 +139,7 @@ class BudgetManager:
         if current_day is None:
             current_day = total_days
         elif not isinstance(current_day, int) or current_day < 1:
-            raise ValueError(f"current_day : {current_day!r}")
+            raise ValueError(f"current_day 必須為正整數，收到: {current_day!r}")
 
         points = [(b["day"], b["cumulative_spent"]) for b in burndown[:current_day]]
         if len(points) < 2:
@@ -199,7 +199,7 @@ class BudgetManager:
         if current_day is None:
             current_day = total_days
         elif not isinstance(current_day, int) or current_day < 1:
-            raise ValueError(f"current_day : {current_day!r}")
+            raise ValueError(f"current_day 必須為正整數，收到: {current_day!r}")
 
         if current_day >= total_days:
             spent = burndown[-1]["cumulative_spent"] if burndown else 0

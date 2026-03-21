@@ -15,7 +15,7 @@ DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
 st.set_page_config(
     page_title="TravelWallet",
-    page_icon="",
+    page_icon="🧳",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -62,8 +62,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Header ---
-st.markdown('<p class="main-header"> TravelWallet</p>', unsafe_allow_html=True)
-st.markdown('<p class="sub-header"> — Smart Travel Wallet for Taiwanese Travelers</p>', unsafe_allow_html=True)
+st.markdown('<p class="main-header">🧳 TravelWallet</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub-header">台灣旅人智慧旅遊錢包 — Smart Travel Wallet for Taiwanese Travelers</p>', unsafe_allow_html=True)
 
 # --- Load Data ---
 @st.cache_data
@@ -144,24 +144,24 @@ def load_dashboard_data(trip_id):
 trips = load_trip_list()
 
 if not trips:
-    st.warning(" seed_data.py ")
+    st.warning("還沒有任何旅行紀錄，請先執行 seed_data.py 生成測試資料")
     st.stop()
 
-st.sidebar.markdown("###  ")
+st.sidebar.markdown("### 🗂️ 選擇旅行")
 trip_options = {f"{t[1]} ({t[3][:7]})": t[0] for t in trips}
-selected_trip_label = st.sidebar.selectbox("", list(trip_options.keys()), label_visibility="collapsed")
+selected_trip_label = st.sidebar.selectbox("旅行", list(trip_options.keys()), label_visibility="collapsed")
 selected_trip_id = trip_options[selected_trip_label]
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("###  ")
+st.sidebar.markdown("### 📌 快速導航")
 st.sidebar.markdown("""
--  Dashboard ()
--  [Transactions](./2_Transactions)
--  [Split Bill](./3_SplitBill)
--  [Trip Planner](./4_TripPlanner)
--  [Exchange](./5_Exchange)
--  [Analytics](./6_Analytics)
--  [Alerts](./7_Alerts)
+- 📊 Dashboard (本頁)
+- 💰 [Transactions](./2_Transactions)
+- 👥 [Split Bill](./3_SplitBill)
+- 🗺️ [Trip Planner](./4_TripPlanner)
+- 💱 [Exchange](./5_Exchange)
+- 📈 [Analytics](./6_Analytics)
+- 🚨 [Alerts](./7_Alerts)
 """)
 
 # --- Dashboard Content ---
@@ -178,23 +178,23 @@ budget = trip[5] if trip[5] else 0
 remaining = budget - per_person
 
 with col1:
-    st.metric(" ", f"NT${data['total_twd']:,.0f}", help="")
+    st.metric("🧾 總花費", f"NT${data['total_twd']:,.0f}", help="全團總消費（台幣）")
 with col2:
-    st.metric(" ", f"NT${per_person:,}", help=" / ")
+    st.metric("👤 每人花費", f"NT${per_person:,}", help="總花費 / 人數")
 with col3:
     delta_color = "normal" if remaining >= 0 else "inverse"
-    st.metric(" ", f"NT${remaining:,.0f}", delta=f" NT${budget:,.0f}", delta_color=delta_color)
+    st.metric("💰 預算剩餘", f"NT${remaining:,.0f}", delta=f"預算 NT${budget:,.0f}", delta_color=delta_color)
 with col4:
-    st.metric(" ", f"{data['pending_count']} ", delta=f"NT${data['pending_twd']:,.0f}")
+    st.metric("🔔 未結清分帳", f"{data['pending_count']} 筆", delta=f"NT${data['pending_twd']:,.0f}")
 
 # Trip info bar
 st.markdown("---")
 info_cols = st.columns(5)
-info_cols[0].markdown(f"** :** {trip[1]}")
-info_cols[1].markdown(f"** :** {trip[2]}")
-info_cols[2].markdown(f"** :** {trip[3]} ~ {trip[4]}")
-info_cols[3].markdown(f"** :** {data['members']} ")
-info_cols[4].markdown(f"** :** {data['txn_count']} ")
+info_cols[0].markdown(f"**📍 目的地:** {trip[1]}")
+info_cols[1].markdown(f"**💱 幣別:** {trip[2]}")
+info_cols[2].markdown(f"**📅 日期:** {trip[3]} ~ {trip[4]}")
+info_cols[3].markdown(f"**👥 人數:** {data['members']} 人")
+info_cols[4].markdown(f"**🧾 交易:** {data['txn_count']} 筆")
 
 st.markdown("---")
 
@@ -202,7 +202,7 @@ st.markdown("---")
 chart_col1, chart_col2 = st.columns(2)
 
 with chart_col1:
-    st.markdown("####  ")
+    st.markdown("#### 📊 消費類別分佈")
     if data["categories"]:
         import plotly.express as px
         cat_names = [c[0] for c in data["categories"]]
@@ -222,7 +222,7 @@ with chart_col1:
         st.plotly_chart(fig, use_container_width=True)
 
 with chart_col2:
-    st.markdown("####  ")
+    st.markdown("#### 📅 每日消費趨勢")
     if data["daily"]:
         import plotly.graph_objects as go
         days = [f"Day {i+1}" for i in range(len(data["daily"]))]
@@ -238,10 +238,10 @@ with chart_col2:
             daily_budget = budget / int(trip[6])
             fig.add_hline(
                 y=daily_budget, line_dash="dash", line_color="#E63946",
-                annotation_text=f" NT${daily_budget:,.0f}",
+                annotation_text=f"每人每日預算 NT${daily_budget:,.0f}",
             )
         fig.update_layout(
-            yaxis_title=" (NT$)",
+            yaxis_title="消費金額 (NT$)",
             margin=dict(t=20, b=40, l=40, r=20),
             height=350,
             showlegend=False,
@@ -250,19 +250,19 @@ with chart_col2:
 
 # Recent transactions
 st.markdown("---")
-st.markdown("####  ")
+st.markdown("#### 🕐 最近交易紀錄")
 
 if data["recent"]:
     import pandas as pd
     df = pd.DataFrame(data["recent"], columns=[
-        "", "()", "", "(TWD)", "", "", "", ""
+        "時間", "金額(原幣)", "幣別", "金額(TWD)", "類別", "說明", "付款人", "異常"
     ])
-    df[""] = df[""].str[:16]
-    df["()"] = df["()"].apply(lambda x: f"{x:,.0f}")
-    df["(TWD)"] = df["(TWD)"].apply(lambda x: f"NT${x:,.0f}")
-    df[""] = df[""].apply(lambda x: "" if x else "")
+    df["時間"] = df["時間"].str[:16]
+    df["金額(原幣)"] = df["金額(原幣)"].apply(lambda x: f"{x:,.0f}")
+    df["金額(TWD)"] = df["金額(TWD)"].apply(lambda x: f"NT${x:,.0f}")
+    df["異常"] = df["異常"].apply(lambda x: "⚠️" if x else "")
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 # Footer
 st.markdown("---")
-st.caption("TravelWallet v1.0 | Data Source:  | Built with Streamlit")
+st.caption("TravelWallet v1.0 | Data Source: 交通部觀光署 | Built with Streamlit")

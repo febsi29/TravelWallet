@@ -1,9 +1,9 @@
 """
-conftest.py -  fixtures
+conftest.py - 共用測試 fixtures
 
-
-- db_path: 
--  schema + users/trips/trip_members/transactions/split_details/settlements/exchange_rates
+提供：
+- db_path: 使用臨時檔案的測試資料庫路徑
+- 自動建立 schema + 種子資料（users/trips/trip_members/transactions/split_details/settlements/exchange_rates）
 """
 
 import sqlite3
@@ -154,57 +154,57 @@ CREATE TABLE IF NOT EXISTS daily_budget_summary (
 """
 
 SEED_SQL = """
--- 
-INSERT INTO users (username, display_name) VALUES ('alice', '');
-INSERT INTO users (username, display_name) VALUES ('bob',   '');
-INSERT INTO users (username, display_name) VALUES ('carol', '');
+-- 使用者
+INSERT INTO users (username, display_name) VALUES ('alice', '小美');
+INSERT INTO users (username, display_name) VALUES ('bob',   '阿博');
+INSERT INTO users (username, display_name) VALUES ('carol', '小嘉');
 
--- trip_id=1,  5 ,  NT$40000/
+-- 旅行（trip_id=1, 日本 5 天, 預算 NT$40000/人）
 INSERT INTO trips (user_id, trip_name, destination, currency_code, start_date, end_date, total_budget)
-VALUES (1, '', '', 'JPY', '2025-03-01', '2025-03-05', 40000);
+VALUES (1, '東京之旅', '日本', 'JPY', '2025-03-01', '2025-03-05', 40000);
 
--- 
+-- 旅行成員
 INSERT INTO trip_members (trip_id, user_id) VALUES (1, 1);
 INSERT INTO trip_members (trip_id, user_id) VALUES (1, 2);
 INSERT INTO trip_members (trip_id, user_id) VALUES (1, 3);
 
---  1 TWD ≈ 4.61 JPYexchange_rate = TWD/ = 1/4.61 ≈ 0.2169
+-- 交易（日幣匯率 1 TWD ≈ 4.61 JPY，exchange_rate = TWD/外幣 = 1/4.61 ≈ 0.2169）
 -- Day 1: 2025-03-01
 INSERT INTO transactions (trip_id, paid_by, amount, currency_code, amount_twd, exchange_rate, category, description, payment_method, txn_datetime, split_type)
-VALUES (1, 1, 3000, 'JPY', 651,  0.2169, '', '', 'cash',        '2025-03-01 12:00:00', 'equal');
+VALUES (1, 1, 3000, 'JPY', 651,  0.2169, '餐飲', '拉麵午餐', 'cash',        '2025-03-01 12:00:00', 'equal');
 INSERT INTO transactions (trip_id, paid_by, amount, currency_code, amount_twd, exchange_rate, category, description, payment_method, txn_datetime, split_type)
-VALUES (1, 2, 8000, 'JPY', 1735, 0.2169, '', ' Day1', 'credit_card', '2025-03-01 15:00:00', 'equal');
+VALUES (1, 2, 8000, 'JPY', 1735, 0.2169, '住宿', '東京民宿 Day1', 'credit_card', '2025-03-01 15:00:00', 'equal');
 
 -- Day 2: 2025-03-02
 INSERT INTO transactions (trip_id, paid_by, amount, currency_code, amount_twd, exchange_rate, category, description, payment_method, txn_datetime, split_type)
-VALUES (1, 1, 2000, 'JPY', 434,  0.2169, '', '', 'mobile_pay', '2025-03-02 09:00:00', 'equal');
+VALUES (1, 1, 2000, 'JPY', 434,  0.2169, '交通', '地鐵一日券', 'mobile_pay', '2025-03-02 09:00:00', 'equal');
 INSERT INTO transactions (trip_id, paid_by, amount, currency_code, amount_twd, exchange_rate, category, description, payment_method, txn_datetime, split_type)
-VALUES (1, 3, 5000, 'JPY', 1085, 0.2169, '', '', 'cash',        '2025-03-02 14:00:00', 'equal');
+VALUES (1, 3, 5000, 'JPY', 1085, 0.2169, '購物', '藥妝購物', 'cash',        '2025-03-02 14:00:00', 'equal');
 INSERT INTO transactions (trip_id, paid_by, amount, currency_code, amount_twd, exchange_rate, category, description, payment_method, txn_datetime, split_type)
-VALUES (1, 2, 8000, 'JPY', 1735, 0.2169, '', ' Day2', 'credit_card', '2025-03-02 22:00:00', 'equal');
+VALUES (1, 2, 8000, 'JPY', 1735, 0.2169, '住宿', '東京民宿 Day2', 'credit_card', '2025-03-02 22:00:00', 'equal');
 
--- Day 3: 2025-03-03 ()
+-- Day 3: 2025-03-03 (異常大額交易)
 INSERT INTO transactions (trip_id, paid_by, amount, currency_code, amount_twd, exchange_rate, category, description, payment_method, txn_datetime, split_type)
-VALUES (1, 1, 30000, 'JPY', 6507, 0.2169, '', '', 'credit_card', '2025-03-03 11:00:00', 'equal');
+VALUES (1, 1, 30000, 'JPY', 6507, 0.2169, '購物', '名牌包（異常大額）', 'credit_card', '2025-03-03 11:00:00', 'equal');
 INSERT INTO transactions (trip_id, paid_by, amount, currency_code, amount_twd, exchange_rate, category, description, payment_method, txn_datetime, split_type)
-VALUES (1, 3, 8000, 'JPY', 1735, 0.2169, '', ' Day3', 'credit_card', '2025-03-03 22:00:00', 'equal');
+VALUES (1, 3, 8000, 'JPY', 1735, 0.2169, '住宿', '東京民宿 Day3', 'credit_card', '2025-03-03 22:00:00', 'equal');
 
--- txn_id=1 
+-- 分帳明細（txn_id=1 的均分）
 INSERT INTO split_details (txn_id, user_id, share_amount, share_twd, share_ratio) VALUES (1, 1, 1000, 217, 0.3333);
 INSERT INTO split_details (txn_id, user_id, share_amount, share_twd, share_ratio) VALUES (1, 2, 1000, 217, 0.3333);
 INSERT INTO split_details (txn_id, user_id, share_amount, share_twd, share_ratio) VALUES (1, 3, 1000, 217, 0.3333);
 
--- pending
+-- 結算記錄（pending）
 INSERT INTO settlements (trip_id, from_user, to_user, amount, currency_code, amount_twd, exchange_rate, status)
 VALUES (1, 3, 1, 1000, 'JPY', 217, 0.2169, 'pending');
 
--- 
+-- 政府統計資料
 INSERT INTO gov_outbound_stats (year, total_outbound_trips, avg_stay_nights, avg_spending_twd, avg_spending_usd)
 VALUES (2023, 12000000, 7.84, 60481, 1907);
 INSERT INTO gov_outbound_stats (year, total_outbound_trips, avg_stay_nights, avg_spending_twd, avg_spending_usd)
 VALUES (2022, 10000000, 7.50, 55000, 1750);
 
---  FxStrategy 
+-- 匯率資料（多日，供 FxStrategy 測試）
 INSERT INTO exchange_rates (base_currency, target_currency, rate, recorded_date) VALUES ('TWD', 'JPY', 4.61, '2025-02-10');
 INSERT INTO exchange_rates (base_currency, target_currency, rate, recorded_date) VALUES ('TWD', 'JPY', 4.65, '2025-02-15');
 INSERT INTO exchange_rates (base_currency, target_currency, rate, recorded_date) VALUES ('TWD', 'JPY', 4.58, '2025-02-20');
@@ -216,7 +216,7 @@ INSERT INTO exchange_rates (base_currency, target_currency, rate, recorded_date)
 
 @pytest.fixture
 def db_path(tmp_path):
-    """ schema """
+    """建立含 schema 與種子資料的測試資料庫，回傳路徑字串"""
     db_file = tmp_path / "test_travel_wallet.db"
     conn = sqlite3.connect(str(db_file))
     conn.executescript(SCHEMA_SQL)

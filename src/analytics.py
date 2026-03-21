@@ -36,7 +36,7 @@ class Analytics:
 
     def personal_vs_national(self, trip_id: int) -> dict:
         if not isinstance(trip_id, int) or trip_id <= 0:
-            raise ValueError(f"trip_id : {trip_id!r}")
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
             cursor.execute("""
@@ -124,7 +124,7 @@ class Analytics:
 
     def category_analysis(self, trip_id: int) -> list:
         if not isinstance(trip_id, int) or trip_id <= 0:
-            raise ValueError(f"trip_id : {trip_id!r}")
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
             cursor.execute("""
@@ -144,8 +144,8 @@ class Analytics:
 
     def category_vs_national(self, trip_id: int) -> list:
         national_ratios = {
-            "": 28.0, "": 25.0, "": 18.0,
-            "": 18.0, "": 6.0, "": 5.0,
+            "住宿": 28.0, "餐飲": 25.0, "交通": 18.0,
+            "購物": 18.0, "娛樂": 6.0, "其他": 5.0,
         }
         personal = self.category_analysis(trip_id)
         personal_dict = {c["category"]: c["percentage"] for c in personal}
@@ -167,7 +167,7 @@ class Analytics:
 
     def daily_spending(self, trip_id: int) -> list:
         if not isinstance(trip_id, int) or trip_id <= 0:
-            raise ValueError(f"trip_id : {trip_id!r}")
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
             cursor.execute("""
@@ -189,7 +189,7 @@ class Analytics:
 
     def split_behavior(self, trip_id: int) -> dict:
         if not isinstance(trip_id, int) or trip_id <= 0:
-            raise ValueError(f"trip_id : {trip_id!r}")
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
             cursor.execute("""
@@ -234,7 +234,7 @@ class Analytics:
 
     def payment_analysis(self, trip_id: int) -> list:
         if not isinstance(trip_id, int) or trip_id <= 0:
-            raise ValueError(f"trip_id : {trip_id!r}")
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
             cursor.execute("""
@@ -246,7 +246,7 @@ class Analytics:
             cursor.execute("SELECT SUM(amount_twd) FROM transactions WHERE trip_id = ?", (trip_id,))
             grand_total = cursor.fetchone()[0] or 1
 
-        labels = {"cash": "", "credit_card": "", "mobile_pay": ""}
+        labels = {"cash": "現金", "credit_card": "信用卡", "mobile_pay": "行動支付"}
         return [
             {"method": labels.get(r[0], r[0]), "count": r[1],
              "total_twd": r[2], "percentage": round(r[2] / grand_total * 100, 1)}

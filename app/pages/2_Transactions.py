@@ -10,16 +10,16 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
-st.set_page_config(page_title="Transactions", page_icon="", layout="wide")
-st.title(" ")
+st.set_page_config(page_title="Transactions", page_icon="💰", layout="wide")
+st.title("💰 交易紀錄")
 
 conn = sqlite3.connect(DB_PATH)
 trips = pd.read_sql_query("SELECT trip_id, trip_name FROM trips", conn)
 if trips.empty:
-    st.warning("")
+    st.warning("沒有旅行紀錄")
     st.stop()
 
-selected = st.selectbox("", trips["trip_name"].tolist())
+selected = st.selectbox("選擇旅行", trips["trip_name"].tolist())
 trip_id = int(trips[trips["trip_name"] == selected]["trip_id"].values[0])
 
 st.markdown("---")
@@ -31,17 +31,17 @@ categories = pd.read_sql_query(
 )["category"].tolist()
 
 with col1:
-    cat_filter = st.multiselect("", categories, default=categories)
+    cat_filter = st.multiselect("類別篩選", categories, default=categories)
 with col2:
-    sort_by = st.selectbox("", ["()", "()", "()", "()"])
+    sort_by = st.selectbox("排序", ["時間(新到舊)", "時間(舊到新)", "金額(高到低)", "金額(低到高)"])
 with col3:
-    search = st.text_input("", "")
+    search = st.text_input("搜尋說明", "")
 
 sort_map = {
-    "()": "t.txn_datetime DESC",
-    "()": "t.txn_datetime ASC",
-    "()": "t.amount_twd DESC",
-    "()": "t.amount_twd ASC",
+    "時間(新到舊)": "t.txn_datetime DESC",
+    "時間(舊到新)": "t.txn_datetime ASC",
+    "金額(高到低)": "t.amount_twd DESC",
+    "金額(低到高)": "t.amount_twd ASC",
 }
 order = sort_map[sort_by]
 placeholders = ",".join(["?" for _ in cat_filter])
@@ -63,24 +63,24 @@ df = pd.read_sql_query(query, conn, params=params)
 
 st.markdown("---")
 s1, s2, s3, s4 = st.columns(4)
-s1.metric("", f"{len(df)} ")
-s2.metric("", f"NT${df['amount_twd'].sum():,.0f}" if not df.empty else "NT$0")
-s3.metric("", f"NT${df['amount_twd'].mean():,.0f}" if not df.empty else "NT$0")
-s4.metric("", f"NT${df['amount_twd'].max():,.0f}" if not df.empty else "NT$0")
+s1.metric("筆數", f"{len(df)} 筆")
+s2.metric("總金額", f"NT${df['amount_twd'].sum():,.0f}" if not df.empty else "NT$0")
+s3.metric("平均每筆", f"NT${df['amount_twd'].mean():,.0f}" if not df.empty else "NT$0")
+s4.metric("最高單筆", f"NT${df['amount_twd'].max():,.0f}" if not df.empty else "NT$0")
 
 st.markdown("---")
 if not df.empty:
     ddf = df.copy()
-    ddf.columns = ["","","","","TWD","","","","","",""]
-    ddf[""] = ddf[""].str[:16]
-    ddf[""] = ddf[""].apply(lambda x: f"{x:,.0f}")
-    ddf["TWD"] = ddf["TWD"].apply(lambda x: f"NT${x:,.0f}")
-    pay_labels = {"cash": "", "credit_card": "", "mobile_pay": ""}
-    ddf[""] = ddf[""].map(pay_labels).fillna(ddf[""])
-    ddf[""] = ddf[""].apply(lambda x: "" if x else "")
+    ddf.columns = ["時間","付款人","金額原幣","幣別","金額TWD","類別","說明","地點","付款方式","分帳","異常"]
+    ddf["時間"] = ddf["時間"].str[:16]
+    ddf["金額原幣"] = ddf["金額原幣"].apply(lambda x: f"{x:,.0f}")
+    ddf["金額TWD"] = ddf["金額TWD"].apply(lambda x: f"NT${x:,.0f}")
+    pay_labels = {"cash": "現金", "credit_card": "信用卡", "mobile_pay": "行動支付"}
+    ddf["付款方式"] = ddf["付款方式"].map(pay_labels).fillna(ddf["付款方式"])
+    ddf["異常"] = ddf["異常"].apply(lambda x: "⚠️" if x else "")
     st.dataframe(ddf, use_container_width=True, hide_index=True)
     csv = df.to_csv(index=False, encoding="utf-8-sig")
-    st.download_button(" CSV", csv, "transactions.csv", "text/csv")
+    st.download_button("匯出 CSV", csv, "transactions.csv", "text/csv")
 else:
-    st.info("")
+    st.info("沒有符合條件的交易紀錄")
 conn.close()
