@@ -1,14 +1,14 @@
 """
-split.py - 
+split.py - 分帳核心引擎
 
+功能：
+- 均分 / 依比例 / 自訂金額分帳
+- 代墊記錄管理
+- 最小化轉帳次數演算法（Greedy Netting）
+- 多幣別換算結算
+- 淨餘額計算
 
--  /  / 
-- 
-- Greedy Netting
-- 
-- 
-
-
+使用方式：
   from src.split import SplitEngine
   engine = SplitEngine(db_path)
   engine.add_equal_split(txn_id, user_ids)
@@ -24,7 +24,7 @@ DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
 
 class SplitEngine:
-    """"""
+    """分帳核心引擎"""
 
     def __init__(self, db_path=None):
         self.db_path = db_path or DB_PATH
@@ -42,28 +42,28 @@ class SplitEngine:
             conn.close()
 
     # ============================================================
-    #  
+    #  分帳方式
     # ============================================================
 
     def add_equal_split(self, txn_id: int, user_ids: list) -> list:
         """
-        
+        均分：將一筆交易平均分給指定的使用者們
 
-        
-            txn_id:  ID
-            user_ids:  ID 
-        
-            list[dict]: 
+        參數：
+            txn_id: 交易 ID
+            user_ids: 要分攤的使用者 ID 列表
+        回傳：
+            list[dict]: 每個人的分帳明細
         """
         if not isinstance(txn_id, int) or txn_id <= 0:
-            raise ValueError(f"txn_id : {txn_id!r}")
+            raise ValueError(f"txn_id 必須為正整數，收到: {txn_id!r}")
         if not user_ids:
-            raise ValueError("user_ids ")
+            raise ValueError("user_ids 不可為空")
 
         with self._db() as (conn, cursor):
             txn = self._get_transaction(cursor, txn_id)
             if not txn:
-                raise ValueError(f" ID={txn_id}")
+                raise ValueError(f"找不到交易 ID={txn_id}")
 
             amount = txn["amount"]
             amount_twd = txn["amount_twd"]
@@ -92,26 +92,26 @@ class SplitEngine:
 
     def add_ratio_split(self, txn_id: int, user_ratios: dict) -> list:
         """
-        
+        依比例分帳
 
-        
-            txn_id:  ID
-            user_ratios: dict{user_id: } {1: 0.5, 2: 0.3, 3: 0.2}
-                          1.0
+        參數：
+            txn_id: 交易 ID
+            user_ratios: dict，{user_id: 比例}，例如 {1: 0.5, 2: 0.3, 3: 0.2}
+                         比例總和必須為 1.0
         """
         if not isinstance(txn_id, int) or txn_id <= 0:
-            raise ValueError(f"txn_id : {txn_id!r}")
+            raise ValueError(f"txn_id 必須為正整數，收到: {txn_id!r}")
         if not user_ratios:
-            raise ValueError("user_ratios ")
+            raise ValueError("user_ratios 不可為空")
 
         total_ratio = sum(user_ratios.values())
         if abs(total_ratio - 1.0) > 0.01:
-            raise ValueError(f" 1.0 {total_ratio}")
+            raise ValueError(f"比例總和必須為 1.0，目前為 {total_ratio}")
 
         with self._db() as (conn, cursor):
             txn = self._get_transaction(cursor, txn_id)
             if not txn:
-                raise ValueError(f" ID={txn_id}")
+                raise ValueError(f"找不到交易 ID={txn_id}")
 
             cursor.execute("UPDATE transactions SET split_type='ratio' WHERE txn_id=?", (txn_id,))
 
@@ -135,26 +135,26 @@ class SplitEngine:
 
     def add_custom_split(self, txn_id: int, user_amounts: dict) -> list:
         """
-        
+        自訂金額分帳
 
-        
-            txn_id:  ID
-            user_amounts: dict{user_id: } {1: 5000, 2: 3000, 3: 2000}
-                          
+        參數：
+            txn_id: 交易 ID
+            user_amounts: dict，{user_id: 原幣金額}，例如 {1: 5000, 2: 3000, 3: 2000}
+                          金額總和必須等於交易金額
         """
         if not isinstance(txn_id, int) or txn_id <= 0:
-            raise ValueError(f"txn_id : {txn_id!r}")
+            raise ValueError(f"txn_id 必須為正整數，收到: {txn_id!r}")
         if not user_amounts:
-            raise ValueError("user_amounts ")
+            raise ValueError("user_amounts 不可為空")
 
         with self._db() as (conn, cursor):
             txn = self._get_transaction(cursor, txn_id)
             if not txn:
-                raise ValueError(f" ID={txn_id}")
+                raise ValueError(f"找不到交易 ID={txn_id}")
 
             total = sum(user_amounts.values())
             if abs(total - txn["amount"]) > 0.01:
-                raise ValueError(f" {total}  {txn['amount']}")
+                raise ValueError(f"分帳金額總和 {total} 不等於交易金額 {txn['amount']}")
 
             cursor.execute("UPDATE transactions SET split_type='custom' WHERE txn_id=?", (txn_id,))
 
@@ -177,22 +177,22 @@ class SplitEngine:
         return details
 
     # ============================================================
-    #  
+    #  淨餘額計算
     # ============================================================
 
     def get_net_balances(self, trip_id: int) -> dict:
         """
-        
+        計算某趟旅行每個人的淨餘額
 
-         =  - 
-         = 
-         = 
+        淨餘額 = 這個人付出的總額 - 這個人該分攤的總額
+        正數 = 別人欠他錢（債權人）
+        負數 = 他欠別人錢（債務人）
 
-        
+        回傳：
             dict: {user_id: {"name": str, "paid": float, "owed": float, "balance": float}}
         """
         if not isinstance(trip_id, int) or trip_id <= 0:
-            raise ValueError(f"trip_id : {trip_id!r}")
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
             cursor.execute("""
@@ -230,29 +230,29 @@ class SplitEngine:
         return balances
 
     # ============================================================
-    #  
+    #  最終結算（最小化轉帳次數）
     # ============================================================
 
     def settle_trip(self, trip_id: int, exchange_rate: float = None, currency_code: str = "JPY") -> list:
         """
-        
+        計算最終結算方案（最小化轉帳次數）
 
-        
-        1. 
-        2. 
-        3. 
-        4. 
+        使用貪心演算法：
+        1. 算出每人淨餘額
+        2. 分成債權人（正餘額）和債務人（負餘額）
+        3. 每次讓最大債務人付給最大債權人
+        4. 重複直到全部清零
 
-        
-            trip_id:  ID
-            exchange_rate: →TWDNone 
-            currency_code: 
+        參數：
+            trip_id: 旅行 ID
+            exchange_rate: 結算匯率（原幣→TWD），None 則從交易紀錄取
+            currency_code: 幣別代碼
 
-        
-            list[dict]:  from/to/amount 
+        回傳：
+            list[dict]: 結算方案，每筆包含 from/to/amount 等資訊
         """
         if not isinstance(trip_id, int) or trip_id <= 0:
-            raise ValueError(f"trip_id : {trip_id!r}")
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         balances = self.get_net_balances(trip_id)
 
@@ -304,14 +304,14 @@ class SplitEngine:
 
     def save_settlements(self, trip_id: int, transfers: list) -> int:
         """
-        
+        將結算方案寫入資料庫
 
-        
-            trip_id:  ID
-            transfers: settle_trip() 
+        參數：
+            trip_id: 旅行 ID
+            transfers: settle_trip() 回傳的結算列表
         """
         if not isinstance(trip_id, int) or trip_id <= 0:
-            raise ValueError(f"trip_id : {trip_id!r}")
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
             cursor.execute("DELETE FROM settlements WHERE trip_id = ?", (trip_id,))
@@ -335,13 +335,13 @@ class SplitEngine:
 
     def mark_settled(self, settlement_id: int) -> None:
         """
-        
+        標記某筆結算為已完成
 
-        
-            settlement_id:  ID
+        參數：
+            settlement_id: 結算紀錄 ID
         """
         if not isinstance(settlement_id, int) or settlement_id <= 0:
-            raise ValueError(f"settlement_id : {settlement_id!r}")
+            raise ValueError(f"settlement_id 必須為正整數，收到: {settlement_id!r}")
 
         with self._db() as (conn, cursor):
             cursor.execute("""
@@ -351,18 +351,18 @@ class SplitEngine:
             """, (settlement_id,))
 
     # ============================================================
-    #  
+    #  查詢功能
     # ============================================================
 
     def get_trip_summary(self, trip_id: int) -> dict:
         """
-        
+        取得某趟旅行的分帳摘要
 
-        
-            dict: 
+        回傳：
+            dict: 包含總花費、各人代墊、各類別消費等摘要
         """
         if not isinstance(trip_id, int) or trip_id <= 0:
-            raise ValueError(f"trip_id : {trip_id!r}")
+            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
             cursor.execute("""
@@ -411,11 +411,11 @@ class SplitEngine:
         }
 
     # ============================================================
-    #  
+    #  工具函式
     # ============================================================
 
     def _get_transaction(self, cursor, txn_id: int) -> dict | None:
-        """"""
+        """取得單筆交易資訊"""
         cursor.execute("""
             SELECT txn_id, trip_id, paid_by, amount, currency_code,
                    amount_twd, exchange_rate, category, split_type
@@ -433,22 +433,22 @@ class SplitEngine:
 
 
 if __name__ == "__main__":
-    print("TravelWallet - ")
+    print("TravelWallet - 分帳引擎測試")
     print("=" * 50)
 
     engine = SplitEngine()
     trip_id = 1
 
-    print("\n:")
+    print("\n淨餘額計算:")
     balances = engine.get_net_balances(trip_id)
     for uid, info in balances.items():
         symbol = "+" if info["balance"] > 0 else "-"
-        print(f"  {info['name']}:  {info['paid']:,.0f},  {info['owed']:,.0f},  {info['balance']:,.0f} {symbol}")
+        print(f"  {info['name']}: 付了 {info['paid']:,.0f}, 該付 {info['owed']:,.0f}, 淨額 {info['balance']:,.0f} {symbol}")
 
-    print("\n:")
+    print("\n最終結算（最小化轉帳）:")
     transfers = engine.settle_trip(trip_id)
     for t in transfers:
         print(f"  {t['from_name']} -> {t['to_name']}: {t['amount']:,.0f} (NT${t['amount_twd']:,})")
-    print(f"\n   {len(transfers)} ")
+    print(f"\n  只需要 {len(transfers)} 筆轉帳！")
 
     print("\nDone!")
