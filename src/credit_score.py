@@ -1,15 +1,15 @@
 """
-credit_score.py - 旅遊財務健康評分模組
+credit_score.py - 
 
-功能：
-- 綜合評分 0-100（四維度加權平均）
-- budget_score：預算控制能力
-- anomaly_score：異常消費狀況
-- settle_score：結算及時性
-- category_score：消費類別均衡度
-- 儲存評分紀錄至資料庫
 
-使用方式：
+-  0-100
+- budget_score
+- anomaly_score
+- settle_score
+- category_score
+- 
+
+
   from src.credit_score import CreditScoreEngine
   engine = CreditScoreEngine(db_path)
   result = engine.evaluate(user_id=1, trip_id=1)
@@ -22,7 +22,7 @@ from contextlib import contextmanager
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
-# 四個維度的權重（總和 = 1.0）
+#  = 1.0
 SCORE_WEIGHTS = {
     "budget":   0.35,
     "anomaly":  0.25,
@@ -30,19 +30,19 @@ SCORE_WEIGHTS = {
     "category": 0.15,
 }
 
-# 各類別建議佔比（觀光署資料）
+# 
 NATIONAL_CATEGORY_RATIOS = {
-    "住宿": 0.28,
-    "餐飲": 0.25,
-    "交通": 0.18,
-    "購物": 0.18,
-    "娛樂": 0.06,
-    "其他": 0.05,
+    "": 0.28,
+    "": 0.25,
+    "": 0.18,
+    "": 0.18,
+    "": 0.06,
+    "": 0.05,
 }
 
 
 class CreditScoreEngine:
-    """旅遊財務健康評分引擎"""
+    """"""
 
     def __init__(self, db_path=None):
         self.db_path = db_path or DB_PATH
@@ -60,20 +60,20 @@ class CreditScoreEngine:
             conn.close()
 
     # ============================================================
-    #  四個評分維度
+    #  
     # ============================================================
 
     def _score_budget(self, trip_id: int) -> int:
         """
-        預算控制分數 (0-100)
+         (0-100)
 
-        計算邏輯：實際消費 / 預算的比例越接近 1 越高分，超支越多扣分越重。
+         /  1 
         """
         with self._db() as (conn, cursor):
             cursor.execute("SELECT total_budget FROM trips WHERE trip_id = ?", (trip_id,))
             row = cursor.fetchone()
             if not row or not row[0]:
-                return 60  # 無預算資料，給中立分數
+                return 60  # 
 
             budget = row[0]
 
@@ -104,9 +104,9 @@ class CreditScoreEngine:
 
     def _score_anomaly(self, trip_id: int) -> int:
         """
-        異常消費分數 (0-100)
+         (0-100)
 
-        計算邏輯：異常交易比例越低分數越高。
+        
         """
         with self._db() as (conn, cursor):
             cursor.execute("SELECT COUNT(*) FROM transactions WHERE trip_id = ?", (trip_id,))
@@ -138,16 +138,16 @@ class CreditScoreEngine:
 
     def _score_settle(self, trip_id: int) -> int:
         """
-        結算及時性分數 (0-100)
+         (0-100)
 
-        計算邏輯：已結清 / 全部結算 的比例。
+         /  
         """
         with self._db() as (conn, cursor):
             cursor.execute("SELECT COUNT(*) FROM settlements WHERE trip_id = ?", (trip_id,))
             total_settlements = cursor.fetchone()[0]
 
             if total_settlements == 0:
-                return 100  # 沒有待結算，滿分
+                return 100  # 
 
             cursor.execute(
                 "SELECT COUNT(*) FROM settlements WHERE trip_id = ? AND status = 'completed'",
@@ -159,9 +159,9 @@ class CreditScoreEngine:
 
     def _score_category(self, trip_id: int) -> int:
         """
-        消費類別均衡分數 (0-100)
+         (0-100)
 
-        計算邏輯：個人消費類別分佈與全國平均的相似度（1 - 平均絕對差）。
+        1 - 
         """
         with self._db() as (conn, cursor):
             cursor.execute("""
@@ -182,29 +182,29 @@ class CreditScoreEngine:
             for cat, national_ratio in NATIONAL_CATEGORY_RATIOS.items()
         )
 
-        # total_diff 最大約為 2.0，最小為 0
+        # total_diff  2.0 0
         similarity = max(0.0, 1.0 - total_diff)
         return round(similarity * 100)
 
     # ============================================================
-    #  核心評分
+    #  
     # ============================================================
 
     def evaluate(self, user_id: int, trip_id: int) -> dict:
         """
-        計算旅遊財務健康綜合評分
+        
 
-        參數：
-            user_id: 使用者 ID
-            trip_id: 旅行 ID
+        
+            user_id:  ID
+            trip_id:  ID
 
-        回傳：
-            dict: 包含各維度分數與綜合評分
+        
+            dict: 
         """
         if not isinstance(user_id, int) or user_id <= 0:
-            raise ValueError(f"user_id 必須為正整數，收到: {user_id!r}")
+            raise ValueError(f"user_id : {user_id!r}")
         if not isinstance(trip_id, int) or trip_id <= 0:
-            raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
+            raise ValueError(f"trip_id : {trip_id!r}")
 
         budget_score   = self._score_budget(trip_id)
         anomaly_score  = self._score_anomaly(trip_id)
@@ -219,15 +219,15 @@ class CreditScoreEngine:
         )
 
         if overall >= 90:
-            grade, label = "A", "優秀旅人"
+            grade, label = "A", ""
         elif overall >= 75:
-            grade, label = "B", "良好"
+            grade, label = "B", ""
         elif overall >= 60:
-            grade, label = "C", "普通"
+            grade, label = "C", ""
         elif overall >= 40:
-            grade, label = "D", "需改善"
+            grade, label = "D", ""
         else:
-            grade, label = "F", "財務風險"
+            grade, label = "F", ""
 
         result = {
             "user_id": user_id,
@@ -248,7 +248,7 @@ class CreditScoreEngine:
         return result
 
     def _save_score(self, result: dict) -> None:
-        """儲存評分結果至資料庫"""
+        """"""
         with self._db() as (conn, cursor):
             cursor.execute("""
                 INSERT INTO credit_scores
@@ -267,19 +267,19 @@ class CreditScoreEngine:
 
     def get_history(self, user_id: int, limit: int = 10) -> list:
         """
-        取得使用者的歷史評分紀錄
+        
 
-        參數：
-            user_id: 使用者 ID
-            limit: 最多回傳幾筆
+        
+            user_id:  ID
+            limit: 
 
-        回傳：
-            list[dict]: 依時間倒序排列的評分紀錄
+        
+            list[dict]: 
         """
         if not isinstance(user_id, int) or user_id <= 0:
-            raise ValueError(f"user_id 必須為正整數，收到: {user_id!r}")
+            raise ValueError(f"user_id : {user_id!r}")
         if not isinstance(limit, int) or limit <= 0:
-            raise ValueError(f"limit 必須為正整數，收到: {limit!r}")
+            raise ValueError(f"limit : {limit!r}")
 
         with self._db() as (conn, cursor):
             cursor.execute("""
@@ -311,18 +311,18 @@ class CreditScoreEngine:
 
 
 if __name__ == "__main__":
-    print("TravelWallet - 旅遊財務健康評分測試")
+    print("TravelWallet - ")
     print("=" * 55)
 
     engine = CreditScoreEngine()
     result = engine.evaluate(user_id=1, trip_id=1)
 
-    print(f"\n使用者 #{result['user_id']} - 旅行 #{result['trip_id']}")
-    print(f"綜合評分: {result['overall_score']}/100  [{result['grade']}] {result['label']}")
-    print(f"\n各維度分數:")
+    print(f"\n #{result['user_id']} -  #{result['trip_id']}")
+    print(f": {result['overall_score']}/100  [{result['grade']}] {result['label']}")
+    print(f"\n:")
     for dim, score in result["details"].items():
         key = dim.replace("_score", "")
         weight = result["weights"].get(key, 0)
-        print(f"  {dim:20s}: {score:3d}/100  (權重 {weight:.0%})")
+        print(f"  {dim:20s}: {score:3d}/100  ( {weight:.0%})")
 
     print("\nDone!")
