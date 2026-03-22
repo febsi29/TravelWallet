@@ -10,8 +10,8 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
-st.set_page_config(page_title="Transactions", page_icon="💰", layout="wide")
-st.title("💰 交易紀錄")
+st.set_page_config(page_title="Transactions", page_icon="TX", layout="wide")
+st.title("交易紀錄")
 
 conn = sqlite3.connect(DB_PATH)
 trips = pd.read_sql_query("SELECT trip_id, trip_name FROM trips", conn)
@@ -77,7 +77,7 @@ if not df.empty:
     ddf["金額TWD"] = ddf["金額TWD"].apply(lambda x: f"NT${x:,.0f}")
     pay_labels = {"cash": "現金", "credit_card": "信用卡", "mobile_pay": "行動支付"}
     ddf["付款方式"] = ddf["付款方式"].map(pay_labels).fillna(ddf["付款方式"])
-    ddf["異常"] = ddf["異常"].apply(lambda x: "⚠️" if x else "")
+    ddf["異常"] = ddf["異常"].apply(lambda x: "[!]" if x else "")
     st.dataframe(ddf, use_container_width=True, hide_index=True)
     csv = df.to_csv(index=False, encoding="utf-8-sig")
     st.download_button("匯出 CSV", csv, "transactions.csv", "text/csv")
