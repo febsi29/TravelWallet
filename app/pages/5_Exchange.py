@@ -34,5 +34,7 @@ with c3:
     to_curr = st.selectbox("To", currency_list, index=0)
     if st.button("Convert", type="primary", use_container_width=True):
         result = cm.convert(amount, from_curr, to_curr)
-        st.success(f"{cm.format_amount(amount, from_curr) if from_curr != 'TWD' else f'NT${amount:,}'} = **{cm.format_amount(result['amount'], to_curr) if to_curr != 'TWD' else f'NT${result[chr(34)+'amount'+chr(34)]:,.0f}'}**".replace(chr(34),"'"))
+        from_str = cm.format_amount(amount, from_curr) if from_curr != "TWD" else f"NT${amount:,}"
+        to_str = cm.format_amount(result["amount"], to_curr) if to_curr != "TWD" else f"NT${result['amount']:,.0f}"
+        st.success(f"{from_str} = **{to_str}**")
         st.caption(f"Rate: {result['rate']:.6f}")
