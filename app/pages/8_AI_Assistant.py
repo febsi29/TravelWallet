@@ -21,22 +21,6 @@ from src.analytics import Analytics
 from src.anomaly import AnomalyDetector
 from src.budget import BudgetManager
 
-st.set_page_config(page_title="AI Assistant", page_icon="AI", layout="wide")
-
-# --- Init modules ---
-engine = SplitEngine(DB_PATH)
-cm = CurrencyManager(DB_PATH)
-planner = TripPlanner(DB_PATH)
-ana = Analytics(DB_PATH)
-detector = AnomalyDetector(DB_PATH)
-bm = BudgetManager(DB_PATH)
-
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
-GEMINI_URL = (
-    f"https://generativelanguage.googleapis.com/v1beta/models"
-    f"/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-)
 
 # ============================================================
 #  Rule-Based Engine (Fallback)

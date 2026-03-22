@@ -10,7 +10,6 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
-st.set_page_config(page_title="Transactions", page_icon="TX", layout="wide")
 st.title("交易紀錄")
 
 conn = sqlite3.connect(DB_PATH)
@@ -71,7 +70,7 @@ s4.metric("最高單筆", f"NT${df['amount_twd'].max():,.0f}" if not df.empty el
 st.markdown("---")
 if not df.empty:
     ddf = df.copy()
-    ddf.columns = ["時間","付款人","金額原幣","幣別","金額TWD","類別","說明","地點","付款方式","分帳","異常"]
+    ddf.columns = ["時間", "付款人", "金額原幣", "幣別", "金額TWD", "類別", "說明", "地點", "付款方式", "分帳", "異常"]
     ddf["時間"] = ddf["時間"].str[:16]
     ddf["金額原幣"] = ddf["金額原幣"].apply(lambda x: f"{x:,.0f}")
     ddf["金額TWD"] = ddf["金額TWD"].apply(lambda x: f"NT${x:,.0f}")
