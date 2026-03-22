@@ -91,15 +91,15 @@ class Analytics:
         diff_daily = per_person_daily - national_daily
 
         if diff_pct < -30:
-            verdict = "super saving - far below national average"
+            verdict = "非常節省 — 遠低於全國平均"
         elif diff_pct < -10:
-            verdict = "below national average"
+            verdict = "低於全國平均"
         elif diff_pct < 10:
-            verdict = "close to national average"
+            verdict = "接近全國平均"
         elif diff_pct < 30:
-            verdict = "above national average"
+            verdict = "高於全國平均"
         else:
-            verdict = "luxury trip - far above national average"
+            verdict = "豪華旅遊 — 遠高於全國平均"
 
         return {
             "trip": {
