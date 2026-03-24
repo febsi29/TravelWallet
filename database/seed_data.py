@@ -213,6 +213,11 @@ def seed_all():
 
     conn.commit()
     conn.close()
+
+    # 寫入信用卡種子資料
+    from src.card_recommend import seed_cards
+    seed_cards(DB_PATH)
+
     print(f"\n種子資料生成完成！")
 
 
