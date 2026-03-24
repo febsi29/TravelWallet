@@ -151,6 +151,153 @@ CREATE TABLE IF NOT EXISTS daily_budget_summary (
     FOREIGN KEY (trip_id) REFERENCES trips(trip_id),
     UNIQUE(trip_id, summary_date)
 );
+
+CREATE TABLE IF NOT EXISTS rate_alerts (
+    alert_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id         INTEGER NOT NULL,
+    base_currency   TEXT NOT NULL DEFAULT 'TWD',
+    target_currency TEXT NOT NULL,
+    target_rate     REAL NOT NULL,
+    direction       TEXT NOT NULL DEFAULT 'above',
+    current_rate    REAL,
+    is_triggered    BOOLEAN DEFAULT 0,
+    triggered_at    DATETIME,
+    is_active       BOOLEAN DEFAULT 1,
+    note            TEXT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS wallets (
+    wallet_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id         INTEGER NOT NULL,
+    currency_code   TEXT NOT NULL,
+    balance         REAL NOT NULL DEFAULT 0,
+    locked_balance  REAL NOT NULL DEFAULT 0,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, currency_code),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS wallet_transactions (
+    wtxn_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    wallet_id       INTEGER NOT NULL,
+    txn_type        TEXT NOT NULL,
+    amount          REAL NOT NULL,
+    currency_code   TEXT NOT NULL,
+    related_wtxn_id INTEGER,
+    exchange_rate   REAL,
+    locked_rate     REAL,
+    note            TEXT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (wallet_id) REFERENCES wallets(wallet_id)
+);
+
+CREATE TABLE IF NOT EXISTS spending_alerts (
+    alert_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    trip_id         INTEGER NOT NULL,
+    user_id         INTEGER NOT NULL,
+    alert_type      TEXT NOT NULL,
+    severity        TEXT NOT NULL DEFAULT 'info',
+    title           TEXT NOT NULL,
+    message         TEXT NOT NULL,
+    is_read         BOOLEAN DEFAULT 0,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (trip_id) REFERENCES trips(trip_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS risk_assessments (
+    assessment_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id         INTEGER NOT NULL,
+    trip_id         INTEGER NOT NULL,
+    overall_risk    REAL NOT NULL,
+    fx_risk         REAL NOT NULL,
+    budget_risk     REAL NOT NULL,
+    anomaly_risk    REAL NOT NULL,
+    credit_risk     REAL NOT NULL,
+    health_index    TEXT NOT NULL,
+    assessed_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (trip_id) REFERENCES trips(trip_id)
+);
+
+CREATE TABLE IF NOT EXISTS credit_cards (
+    card_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    card_name       TEXT NOT NULL,
+    issuer          TEXT NOT NULL,
+    card_type       TEXT NOT NULL,
+    annual_fee      REAL DEFAULT 0,
+    overseas_fee_pct REAL DEFAULT 1.5,
+    is_active       BOOLEAN DEFAULT 1,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS card_rewards (
+    reward_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    card_id         INTEGER NOT NULL,
+    category        TEXT NOT NULL,
+    region          TEXT DEFAULT 'all',
+    reward_type     TEXT NOT NULL,
+    reward_rate     REAL NOT NULL,
+    reward_cap      REAL,
+    min_spend       REAL DEFAULT 0,
+    valid_from      DATE,
+    valid_to        DATE,
+    FOREIGN KEY (card_id) REFERENCES credit_cards(card_id)
+);
+
+CREATE TABLE IF NOT EXISTS ocr_receipts (
+    receipt_id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id             INTEGER NOT NULL,
+    trip_id             INTEGER,
+    image_path          TEXT NOT NULL,
+    raw_text            TEXT,
+    extracted_amount    REAL,
+    extracted_currency  TEXT,
+    extracted_merchant  TEXT,
+    extracted_category  TEXT,
+    extracted_date      TEXT,
+    confidence          REAL,
+    status              TEXT DEFAULT 'pending',
+    linked_txn_id       INTEGER,
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS community_stats (
+    stat_id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    destination         TEXT NOT NULL,
+    trip_days           INTEGER NOT NULL,
+    num_travelers       INTEGER NOT NULL,
+    total_spent_twd     REAL NOT NULL,
+    per_person_daily    REAL NOT NULL,
+    category_breakdown  TEXT,
+    user_id             INTEGER NOT NULL,
+    trip_id             INTEGER NOT NULL,
+    is_anonymous        BOOLEAN DEFAULT 1,
+    shared_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, trip_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS payment_links (
+    link_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    settlement_id   INTEGER NOT NULL,
+    provider        TEXT NOT NULL,
+    payment_url     TEXT,
+    qr_code_data    TEXT,
+    amount          REAL NOT NULL,
+    currency_code   TEXT NOT NULL,
+    status          TEXT DEFAULT 'pending',
+    expires_at      DATETIME,
+    paid_at         DATETIME,
+    provider_ref    TEXT,
+    from_name       TEXT,
+    to_name         TEXT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (settlement_id) REFERENCES settlements(settlement_id)
+);
 """
 
 SEED_SQL = """
