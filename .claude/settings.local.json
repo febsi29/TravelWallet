@@ -1,18 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(echo $SHELL)",
-      "Bash(source ~/.bashrc)",
-      "Bash(alias pytest:*)",
-      "Skill(update-config)",
-      "Skill(update-config:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)",
-      "Bash(python database/seed_data.py)",
-      "Bash(python -m streamlit --version)",
-      "Bash(grep -n \"st.set_page_config\" app/pages/*.py)",
-      "Bash(wc -l app/pages/*.py)"
+      "Bash(*)",
+      "Edit(*)",
+      "Write(*)",
+      "Read(*)",
+      "MultiEdit(*)",
+      "Skill(*)"
     ]
   }
 }

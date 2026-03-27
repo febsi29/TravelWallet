@@ -116,6 +116,18 @@ class ReceiptOCR:
         if not isinstance(user_id, int) or user_id <= 0:
             raise ValueError(f"user_id 必須為正整數，收到: {user_id!r}")
 
+        # 路徑安全：驗證副檔名在允許白名單內，防止路徑遍歷與危險檔案類型
+        _ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".bmp"}
+        ext = os.path.splitext(image_path)[1].lower()
+        if ext not in _ALLOWED_EXTS:
+            raise ValueError(f"不支援的圖片格式 '{ext}'，僅允許：{', '.join(_ALLOWED_EXTS)}")
+        # 確保路徑在系統暫存目錄或允許的目錄內
+        import tempfile
+        abs_path = os.path.realpath(image_path)
+        tmp_dir = os.path.realpath(tempfile.gettempdir())
+        if not abs_path.startswith(tmp_dir):
+            raise ValueError("image_path 必須位於系統暫存目錄內")
+
         raw_text = self._do_ocr(image_path)
 
         # 若 Claude Vision 已解析結構化資料，直接使用（更準確）
