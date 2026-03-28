@@ -15,6 +15,27 @@ load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
+
+def _bootstrap_db() -> None:
+    """若資料庫不存在或 trips 資料表為空，自動執行 schema + seed。"""
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    schema_path = os.path.join(BASE_DIR, "database", "schema.sql")
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            # 建立 schema（IF NOT EXISTS，安全重複執行）
+            if os.path.exists(schema_path):
+                with open(schema_path, encoding="utf-8") as f:
+                    conn.executescript(f.read())
+            # 若 users 表空才跑 seed
+            count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+            if count == 0:
+                from database import seed_data  # noqa: F401
+    except Exception:
+        pass  # 初始化失敗不阻擋 UI 啟動
+
+
+_bootstrap_db()
+
 st.set_page_config(
     page_title="智慧旅遊錢包",
     page_icon="TW",
