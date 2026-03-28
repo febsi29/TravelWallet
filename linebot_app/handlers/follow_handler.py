@@ -28,18 +28,6 @@ logger = logging.getLogger(__name__)
 _LIFF_URL_TEMPLATE = "https://liff.line.me/{liff_id}"
 
 
-def _ensure_line_user_id_column(conn: sqlite3.Connection) -> None:
-    """
-    檢查 users 資料表是否有 line_user_id 欄位。
-    若不存在，執行 ALTER TABLE 新增之。
-    """
-    cursor = conn.execute("PRAGMA table_info(users)")
-    columns = [row[1] for row in cursor.fetchall()]
-    if "line_user_id" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN line_user_id TEXT")
-        logger.info("已在 users 資料表新增 line_user_id 欄位")
-
-
 def _upsert_line_user(
     conn: sqlite3.Connection,
     line_user_id: str,
@@ -169,7 +157,6 @@ def handle_follow(event: FollowEvent, messaging_api: MessagingApi) -> None:
     # 寫入資料庫
     try:
         with sqlite3.connect(DB_PATH) as conn:
-            _ensure_line_user_id_column(conn)
             _upsert_line_user(conn, line_user_id, display_name)
     except sqlite3.Error as exc:
         logger.error("資料庫操作失敗 (user=%s): %s", line_user_id, exc)

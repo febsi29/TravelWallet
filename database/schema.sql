@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     username      TEXT NOT NULL UNIQUE,
     display_name  TEXT NOT NULL,
     base_currency TEXT DEFAULT 'TWD',
+    line_user_id  TEXT,
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
