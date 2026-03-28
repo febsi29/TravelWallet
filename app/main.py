@@ -26,10 +26,7 @@ def _bootstrap_db() -> None:
             if os.path.exists(schema_path):
                 with open(schema_path, encoding="utf-8") as f:
                     conn.executescript(f.read())
-            # 若 users 表空才跑 seed
-            count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-            if count == 0:
-                from database import seed_data  # noqa: F401
+            pass  # schema 建立完成，不自動 seed
     except Exception:
         pass  # 初始化失敗不阻擋 UI 啟動
 
@@ -157,7 +154,8 @@ def dashboard():
 
     trips = load_trip_list()
     if not trips:
-        st.warning("還沒有任何旅行紀錄，請先執行 seed_data.py 生成測試資料")
+        st.info("還沒有任何旅行紀錄")
+        st.markdown("請到左側選單 **「行程規劃」** 建立第一趟旅行。")
         st.stop()
 
     st.sidebar.markdown("### 選擇旅行")
