@@ -9,9 +9,14 @@ from src.anomaly import AnomalyDetector
 st.title("異常偵測")
 st.caption("使用 Z-Score、IQR、隔離森林演算法進行多數投票")
 detector = AnomalyDetector(DB_PATH)
-conn = sqlite3.connect(DB_PATH)
-trips = pd.read_sql_query("SELECT trip_id, trip_name FROM trips", conn)
-conn.close()
+uid = st.session_state.get("user_id", 1)
+with sqlite3.connect(DB_PATH) as conn:
+    trips = pd.read_sql_query(
+        """SELECT DISTINCT t.trip_id, t.trip_name FROM trips t
+           JOIN trip_members tm ON t.trip_id = tm.trip_id
+           WHERE tm.user_id = ?""",
+        conn, params=(uid,)
+    )
 if trips.empty:
     st.warning("尚無旅行紀錄"); st.stop()
 
@@ -48,7 +53,23 @@ if st.button("執行偵測", type="primary", use_container_width=True):
         st.markdown("---")
         st.subheader("異常交易")
         for a in anomalies:
-            st.error(f"#{a['txn_id']} | NT${a['amount_twd']:,.0f} | {a['category']} | {a['description']} | 標記 {a['flags']}/3")
+            col_info, col_btn = st.columns([5, 1])
+            with col_info:
+                st.error(f"#{a['txn_id']} | NT${a['amount_twd']:,.0f} | {a['category']} | {a['description']} | 標記 {a['flags']}/3")
+            with col_btn:
+                if st.button("標記為正常", key=f"false_positive_{a['txn_id']}"):
+                    try:
+                        conn_upd = sqlite3.connect(DB_PATH)
+                        conn_upd.execute(
+                            "UPDATE transactions SET is_anomaly = 0 WHERE txn_id = ?",
+                            (a["txn_id"],)
+                        )
+                        conn_upd.commit()
+                        conn_upd.close()
+                        st.success(f"交易 #{a['txn_id']} 已標記為正常")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"更新失敗：{e}")
     else:
         st.success("未偵測到異常！所有交易均在正常範圍內。")
 

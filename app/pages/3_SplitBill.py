@@ -8,8 +8,14 @@ from src.split import SplitEngine
 
 st.title("分帳中心")
 engine = SplitEngine(DB_PATH)
+uid = st.session_state.get("user_id", 1)
 conn = sqlite3.connect(DB_PATH)
-trips = pd.read_sql_query("SELECT trip_id, trip_name FROM trips", conn)
+trips = pd.read_sql_query(
+    """SELECT DISTINCT t.trip_id, t.trip_name FROM trips t
+       JOIN trip_members tm ON t.trip_id = tm.trip_id
+       WHERE tm.user_id = ?""",
+    conn, params=(uid,)
+)
 if trips.empty:
     st.warning("尚無旅行紀錄"); conn.close(); st.stop()
 selected = st.selectbox("選擇旅行", trips["trip_name"].tolist())
@@ -52,3 +58,57 @@ with c2:
         st.markdown(f"{c['category']}：Y{c['amount']:,.0f}（{pct:.0f}%）")
         st.progress(pct/100)
 conn.close()
+
+st.markdown("---")
+with st.expander("新增交易"):
+    FALLBACK_RATES = {"JPY": 0.217, "USD": 32.0, "TWD": 1.0}
+    CATEGORIES = ["餐飲", "交通", "住宿", "購物", "娛樂", "其他"]
+
+    with sqlite3.connect(DB_PATH) as _conn:
+        _users = pd.read_sql_query("SELECT user_id, name FROM users", _conn)
+        _members = pd.read_sql_query(
+            "SELECT user_id FROM trip_members WHERE trip_id = ?", _conn, params=(trip_id,)
+        )
+
+    member_ids = set(_members["user_id"].tolist())
+    member_users = _users[_users["user_id"].isin(member_ids)]
+
+    if member_users.empty:
+        st.warning("此行程尚無成員，請先新增成員。")
+    else:
+        desc = st.text_input("說明", key="tx_desc")
+        amount = st.number_input("金額", min_value=0.0, step=1.0, key="tx_amount")
+        currency = st.selectbox("幣別", ["JPY", "TWD", "USD"], key="tx_currency")
+        payer_name = st.selectbox("付款人", member_users["name"].tolist(), key="tx_payer")
+        payer_id = int(member_users[member_users["name"] == payer_name]["user_id"].values[0])
+        category = st.selectbox("類別", CATEGORIES, key="tx_category")
+        split_method = st.selectbox("分帳方式", ["平均", "自訂"], key="tx_split")
+
+        if st.button("送出", key="tx_submit"):
+            if not desc.strip():
+                st.error("說明不可為空。")
+            elif amount <= 0:
+                st.error("金額必須大於零。")
+            else:
+                amount_twd = round(amount * FALLBACK_RATES[currency])
+                with sqlite3.connect(DB_PATH) as _conn:
+                    cur = _conn.execute(
+                        """INSERT INTO transactions
+                           (trip_id, description, amount, currency, amount_twd, paid_by, category, split_method)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (trip_id, desc.strip(), amount, currency, amount_twd, payer_id, category, split_method),
+                    )
+                    tx_id = cur.lastrowid
+                    member_count = len(member_ids)
+                    share_amount = round(amount / member_count, 2) if member_count > 0 else amount
+                    share_amount_twd = round(amount_twd / member_count) if member_count > 0 else amount_twd
+                    for uid in member_ids:
+                        _conn.execute(
+                            """INSERT INTO split_details
+                               (transaction_id, user_id, share_amount, share_amount_twd)
+                               VALUES (?, ?, ?, ?)""",
+                            (tx_id, uid, share_amount, share_amount_twd),
+                        )
+                    _conn.commit()
+                st.success(f"交易「{desc.strip()}」已成功新增！")
+                st.rerun()
