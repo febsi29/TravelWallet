@@ -8,9 +8,14 @@ from src.analytics import Analytics
 
 st.title("消費分析")
 ana = Analytics(DB_PATH)
-conn = sqlite3.connect(DB_PATH)
-trips = pd.read_sql_query("SELECT trip_id, trip_name FROM trips", conn)
-conn.close()
+uid = st.session_state.get("user_id", 1)
+with sqlite3.connect(DB_PATH) as conn:
+    trips = pd.read_sql_query(
+        """SELECT DISTINCT t.trip_id, t.trip_name FROM trips t
+           JOIN trip_members tm ON t.trip_id = tm.trip_id
+           WHERE tm.user_id = ?""",
+        conn, params=(uid,)
+    )
 if trips.empty:
     st.warning("尚無旅行紀錄"); st.stop()
 
@@ -75,3 +80,57 @@ with tab4:
         st.markdown("**實際分擔**")
         for s in split["share_ranking"]:
             st.markdown(f"- {s['name']}：NT${s['total_twd']:,.0f}")
+
+st.divider()
+st.subheader("匯出分析報告")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    try:
+        cat_comp = ana.category_vs_national(trip_id)
+        cat_df = pd.DataFrame(cat_comp)
+        csv_cat = cat_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+        st.download_button(
+            label="匯出類別分析",
+            data=csv_cat,
+            file_name=f"類別分析_{selected}.csv",
+            mime="text/csv",
+        )
+    except Exception as e:
+        st.warning(f"類別分析匯出失敗：{e}")
+
+with col2:
+    try:
+        daily = ana.daily_spending(trip_id)
+        daily_df = pd.DataFrame(daily) if daily else pd.DataFrame()
+        csv_daily = daily_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+        st.download_button(
+            label="匯出每日趨勢",
+            data=csv_daily,
+            file_name=f"每日趨勢_{selected}.csv",
+            mime="text/csv",
+        )
+    except Exception as e:
+        st.warning(f"每日趨勢匯出失敗：{e}")
+
+with col3:
+    try:
+        pvn = ana.personal_vs_national(trip_id)
+        pvn_rows = [
+            {"項目": "每人總花費 (NT$)", "個人": pvn["personal"]["per_person_total"], "全國平均": pvn["national"]["avg_total"]},
+            {"項目": "每人每日花費 (NT$)", "個人": pvn["personal"]["per_person_daily"], "全國平均": pvn["national"]["avg_daily"]},
+            {"項目": "差距百分比 (%)", "個人": pvn["comparison"]["diff_pct"], "全國平均": ""},
+            {"項目": "差距金額 (NT$)", "個人": pvn["comparison"]["diff_total"], "全國平均": ""},
+            {"項目": "結論", "個人": pvn["comparison"]["verdict"], "全國平均": ""},
+        ]
+        pvn_df = pd.DataFrame(pvn_rows)
+        csv_pvn = pvn_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+        st.download_button(
+            label="匯出個人 vs 全國",
+            data=csv_pvn,
+            file_name=f"個人vs全國_{selected}.csv",
+            mime="text/csv",
+        )
+    except Exception as e:
+        st.warning(f"個人 vs 全國匯出失敗：{e}")

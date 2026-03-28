@@ -21,6 +21,77 @@ from src.analytics import Analytics
 from src.anomaly import AnomalyDetector
 from src.budget import BudgetManager
 
+# ============================================================
+#  Service Instances
+# ============================================================
+
+engine = SplitEngine(DB_PATH)
+cm = CurrencyManager(DB_PATH)
+planner = TripPlanner(DB_PATH)
+ana = Analytics(DB_PATH)
+detector = AnomalyDetector(DB_PATH)
+bm = BudgetManager(DB_PATH)
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_URL = (
+    f"https://generativelanguage.googleapis.com/v1beta/models/"
+    f"gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+)
+
+# ============================================================
+#  預設旅遊規劃 Prompt
+# ============================================================
+
+DEFAULT_TRAVEL_PROMPT = """你是一個專業旅遊規劃助理，請為使用者規劃一趟「東京自由行」行程，符合便宜、好玩、好拍照、不累、避免踩雷等需求，並提供清楚、可執行的詳細建議。
+請根據使用者需求，設計完整且實用的旅遊計畫，包括每日行程安排、交通建議、預算控制技巧、美食推薦與拍照亮點，確保行程順暢、不折返、不過度拉車、不安排評價過低或觀光陷阱行程。
+在提出最終行程前，請先進行規劃邏輯思考，確保：
+- 行程動線合理（同區域安排在同一天）
+- 每日步行與交通時間不過長
+- 熱門景點避開尖峰或給替代建議
+- 平衡景點、美食、拍照、休息時間
+- 提供價格親民或高CP值選項
+
+# Steps
+1. 旅遊基本設定推估（若使用者未提供）
+- 預設旅遊天數（3–5天合理安排）
+- 住宿區域假設（如上野/淺草/新宿其中一區）
+- 出發季節採一般旅遊旺季標準規劃
+- 預設適合第一次東京自由行旅客
+2. 行程規劃邏輯（需先內部推理後再輸出結果）
+- 區域分配（例如：淺草上野一天、澀谷原宿一天、新宿一天等）
+- 避免跨區來回
+- 每日最多 3–4 個主要景點
+- 安排至少 1 個拍照亮點
+- 安排 1–2 間高評價平價美食
+- 預留休息或彈性時間
+3. 預算控制建議
+- 免費景點或低門票景點優先
+- 平價餐廳（人均合理日幣價格範圍）
+- 交通票券建議（是否需要地鐵券）
+4. 防踩雷設計
+- 避開評價明顯兩極或過度觀光化餐廳
+- 提醒避開尖峰時段
+- 如為爆紅名店，給平替選項
+5. 最後輸出完整每日行程安排與總結建議
+
+# Output Format
+請使用以下結構輸出（以Markdown呈現）：
+1. 行程總覽（簡述本次旅行風格與特色，約150字內）
+2. 每日詳細行程（依 Day 1 / Day 2 / Day 3… 分段）
+- 上午：
+- 午餐建議：
+- 下午：
+- 晚餐建議：
+- 拍照亮點：
+- 小省錢技巧：
+3. 交通與票券建議
+4. 預算概抓（以日幣估算區間）
+5. 防踩雷提醒
+6. 加分可替代選項（如下雨備案或體力不足時方案）
+
+篇幅建議：1000–1800字
+語氣：親切、實用、像旅遊部落客但不浮誇
+內容需具體（提供真實地區與類型建議，但避免虛構商家）"""
 
 # ============================================================
 #  Rule-Based Engine (Fallback)
@@ -83,21 +154,31 @@ def rule_based_response(user_input: str) -> str | None:
             return "\n".join(lines)
 
     # --- Budget Planning ---
-    plan_keywords = ["預算", "規劃", "plan", "budget", "花多少", "要帶多少"]
-    if any(k in text for k in plan_keywords):
-        dest = None
-        for d in DESTINATION_FACTORS.keys():
-            if d in text:
-                dest = d
-                break
+    plan_keywords = ["預算", "規劃", "plan", "budget", "花多少", "要帶多少", "行程", "幾天", "幾人"]
+    days_match = re.search(r'(\d+)\s*[天日]', text)
+    people_match = re.search(r'(\d+)\s*[人個位]', text)
+    has_numbers = bool(days_match or people_match)
 
-        days_match = re.search(r'(\d+)\s*[天日]', text)
+    # 偵測訊息中是否含有支援的目的地
+    matched_dest = None
+    for d in DESTINATION_FACTORS.keys():
+        if d in text:
+            matched_dest = d
+            break
+
+    # 若無目的地但有天數/人數，沿用上一次目的地（對話追蹤）
+    if not matched_dest and has_numbers:
+        matched_dest = st.session_state.get("last_dest")
+
+    if any(k in text for k in plan_keywords) or matched_dest:
+        dest = matched_dest
+
         days = int(days_match.group(1)) if days_match else 5
-
-        people_match = re.search(r'(\d+)\s*[人個位]', text)
         people = int(people_match.group(1)) if people_match else 1
 
         if dest:
+            # 儲存目的地供後續對話使用
+            st.session_state.last_dest = dest
             plan = planner.suggest_budget(dest, days, people)
             std = plan["tiers"]["standard"]
             bud = plan["tiers"]["budget"]
@@ -241,7 +322,7 @@ def get_context_data() -> str:
     return "\n".join(context_parts)
 
 
-def call_gemini(user_input: str, chat_history: list) -> str | None:
+def call_gemini(user_input: str, chat_history: list, custom_prompt: str = "") -> str | None:
     """Call Gemini API with context"""
     if not GEMINI_API_KEY:
         return None
@@ -252,6 +333,8 @@ def call_gemini(user_input: str, chat_history: list) -> str | None:
         return None
 
     context = get_context_data()
+
+    travel_section = f"\n\n---\n{custom_prompt}" if custom_prompt.strip() else ""
 
     system_prompt = f"""You are TravelWallet AI Assistant, a smart travel finance helper for Taiwanese travelers.
 You help with: trip budget planning, currency exchange, expense tracking, split bills, anomaly detection.
@@ -264,12 +347,11 @@ Supported currencies: {', '.join(COMMON_CURRENCIES.keys())}
 
 Rules:
 - Reply in Traditional Chinese (繁體中文)
-- Be concise and helpful
-- Use numbers and data from the context when relevant
+- Be helpful and use data from context when relevant
 - When asked about budget planning, provide 3 tiers (budget/standard/premium)
 - For currency questions, provide the rate and conversion
 - For split bill questions, explain who owes whom
-- Do not use emoji in responses
+{travel_section}
 """
 
     contents = []
@@ -284,7 +366,7 @@ Rules:
         "systemInstruction": {"parts": [{"text": system_prompt}]},
         "generationConfig": {
             "temperature": 0.7,
-            "maxOutputTokens": 1024,
+            "maxOutputTokens": 3000,
         },
     }
 
@@ -306,6 +388,28 @@ Rules:
 st.title("TravelWallet AI 旅遊助手")
 st.caption("詢問旅遊預算、匯率換算、分帳結算、消費分析等問題！")
 
+# 側邊欄：自訂 Prompt 編輯器
+with st.sidebar:
+    st.markdown("### 自訂旅遊 Prompt")
+    with st.expander("編輯 AI 行為指令", expanded=False):
+        if "custom_travel_prompt" not in st.session_state:
+            st.session_state.custom_travel_prompt = DEFAULT_TRAVEL_PROMPT
+        edited = st.text_area(
+            "Prompt 內容",
+            value=st.session_state.custom_travel_prompt,
+            height=300,
+            label_visibility="collapsed",
+        )
+        col_save, col_reset = st.columns(2)
+        with col_save:
+            if st.button("儲存", use_container_width=True):
+                st.session_state.custom_travel_prompt = edited
+                st.success("已儲存")
+        with col_reset:
+            if st.button("還原預設", use_container_width=True):
+                st.session_state.custom_travel_prompt = DEFAULT_TRAVEL_PROMPT
+                st.rerun()
+
 col1, col2 = st.columns([3, 1])
 with col2:
     mode = st.radio(
@@ -322,7 +426,7 @@ with qcol1:
         st.session_state.quick_msg = "目前主要貨幣匯率"
 with qcol2:
     if st.button("行程規劃", use_container_width=True):
-        st.session_state.quick_msg = "規劃東京 5天 4人的預算"
+        st.session_state.quick_msg = st.session_state.get("custom_travel_prompt", DEFAULT_TRAVEL_PROMPT)
 with qcol3:
     if st.button("分帳結算", use_container_width=True):
         st.session_state.quick_msg = "查看分帳狀況"
@@ -363,7 +467,8 @@ def get_response(prompt: str) -> tuple[str, str]:
     if response:
         return response, "規則引擎"
 
-    response = call_gemini(prompt, st.session_state.messages)
+    custom_prompt = st.session_state.get("custom_travel_prompt", DEFAULT_TRAVEL_PROMPT)
+    response = call_gemini(prompt, st.session_state.messages, custom_prompt)
     if response:
         return response, "Gemini"
 

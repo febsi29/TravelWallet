@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: travelwallet-web
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: PYTHONUTF8=1 streamlit run app/main.py --server.port $PORT --server.headless true --server.address 0.0.0.0
+    envVars:
+      - key: DB_PATH
+        value: /data/travel_wallet.db
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: LIFF_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: EXCHANGE_RATE_API_KEY
+        sync: false
+      - key: STREAMLIT_URL
+        sync: false
+    disk:
+      name: travelwallet-data
+      mountPath: /data
+      sizeGB: 1
+
+  - type: web
+    name: travelwallet-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn linebot_app.webhook:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DB_PATH
+        value: /data/travel_wallet.db
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: LIFF_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: STREAMLIT_URL
+        sync: false
+    disk:
+      name: travelwallet-data
+      mountPath: /data
+      sizeGB: 1

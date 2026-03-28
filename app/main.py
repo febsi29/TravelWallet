@@ -10,6 +10,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
+from dotenv import load_dotenv
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
 DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
 st.set_page_config(
@@ -231,6 +234,45 @@ def dashboard():
     st.markdown("---")
     st.caption("TravelWallet v1.0 | 資料來源：交通部觀光署 | Built with Streamlit")
 
+
+# --- 側邊欄使用者切換 ---
+def _load_users() -> list[tuple[int, str]]:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, display_name FROM users ORDER BY user_id")
+        return cursor.fetchall()
+
+
+def render_user_selector() -> None:
+    st.sidebar.markdown("### 目前使用者")
+    try:
+        users = _load_users()
+        if users:
+            user_labels = [u[1] for u in users]
+            user_ids = [u[0] for u in users]
+
+            current_id = st.session_state.get("user_id")
+            default_index = user_ids.index(current_id) if current_id in user_ids else 0
+
+            selected_label = st.sidebar.selectbox(
+                "使用者",
+                user_labels,
+                index=default_index,
+                label_visibility="collapsed",
+            )
+            selected_index = user_labels.index(selected_label)
+            st.session_state["user_id"] = user_ids[selected_index]
+            st.session_state["user_name"] = selected_label
+            st.sidebar.caption(f"已選擇：{selected_label}")
+        else:
+            st.sidebar.warning("資料庫中尚無使用者資料")
+    except Exception as e:
+        st.sidebar.warning(f"無法讀取使用者清單：{e}")
+
+    st.sidebar.markdown("---")
+
+
+render_user_selector()
 
 # --- Navigation ---
 pg = st.navigation([

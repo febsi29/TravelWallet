@@ -27,7 +27,13 @@ _ORDER_DIR = {
 }
 
 with sqlite3.connect(DB_PATH) as conn:
-    trips = pd.read_sql_query("SELECT trip_id, trip_name FROM trips", conn)
+    uid = st.session_state.get("user_id", 1)
+    trips = pd.read_sql_query(
+        """SELECT DISTINCT t.trip_id, t.trip_name FROM trips t
+           JOIN trip_members tm ON t.trip_id = tm.trip_id
+           WHERE tm.user_id = ?""",
+        conn, params=(uid,)
+    )
     if trips.empty:
         st.warning("沒有旅行紀錄")
         st.stop()
@@ -87,6 +93,8 @@ if not df.empty:
     ddf["金額TWD"] = ddf["金額TWD"].apply(lambda x: f"NT${x:,.0f}")
     pay_labels = {"cash": "現金", "credit_card": "信用卡", "mobile_pay": "行動支付"}
     ddf["付款方式"] = ddf["付款方式"].map(pay_labels).fillna(ddf["付款方式"])
+    split_labels = {"equal": "平均分帳", "custom": "自訂金額", "percentage": "比例分帳"}
+    ddf["分帳"] = ddf["分帳"].map(split_labels).fillna(ddf["分帳"])
     ddf["異常"] = ddf["異常"].apply(lambda x: "[!]" if x else "")
     st.dataframe(ddf, use_container_width=True, hide_index=True)
     csv = df.to_csv(index=False, encoding="utf-8-sig")
