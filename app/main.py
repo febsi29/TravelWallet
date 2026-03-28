@@ -13,7 +13,7 @@ if BASE_DIR not in sys.path:
 from dotenv import load_dotenv
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
+from config.settings import DB_PATH
 
 
 def _bootstrap_db() -> None:

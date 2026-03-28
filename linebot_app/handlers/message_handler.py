@@ -228,6 +228,7 @@ def handle_text_message(event: MessageEvent, messaging_api: MessagingApi) -> Non
         return
 
     text: str = event.message.text or ""
+    reply_text: str = "系統發生錯誤，請稍後再試。"
 
     # 查詢資料庫中的 user_id
     try:
@@ -241,10 +242,6 @@ def handle_text_message(event: MessageEvent, messaging_api: MessagingApi) -> Non
         # 自動建立帳號（取得 profile 名稱後 upsert）
         try:
             with sqlite3.connect(DB_PATH) as conn:
-                cursor = conn.execute("PRAGMA table_info(users)")
-                columns = [row[1] for row in cursor.fetchall()]
-                if "line_user_id" not in columns:
-                    conn.execute("ALTER TABLE users ADD COLUMN line_user_id TEXT")
                 conn.execute(
                     """INSERT INTO users (username, display_name, line_user_id)
                        VALUES (?, ?, ?)
@@ -260,17 +257,23 @@ def handle_text_message(event: MessageEvent, messaging_api: MessagingApi) -> Non
             logger.error("自動建立使用者失敗 (line_user_id=%s): %s", line_user_id, exc)
 
     if user_id is None:
-        # fallback: 使用 user_id=1（示範資料）
-        user_id = 1
-    if user_id is not None:
-        try:
-            reply_text = _dispatch_command(text, user_id)
-        except sqlite3.Error as exc:
-            logger.error("指令執行時資料庫錯誤 (user_id=%d): %s", user_id, exc)
-            reply_text = "查詢資料時發生錯誤，請稍後再試。"
-        except Exception as exc:
-            logger.exception("指令執行時發生未預期錯誤 (user_id=%d): %s", user_id, exc)
-            reply_text = "系統發生錯誤，請稍後再試。"
+        logger.warning("無法取得或建立使用者 (line_user_id=%s)，拒絕服務", line_user_id)
+        messaging_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text="帳號建立失敗，請稍後再試或聯繫客服。")],
+            )
+        )
+        return
+
+    try:
+        reply_text = _dispatch_command(text, user_id)
+    except sqlite3.Error as exc:
+        logger.error("指令執行時資料庫錯誤 (user_id=%d): %s", user_id, exc)
+        reply_text = "查詢資料時發生錯誤，請稍後再試。"
+    except Exception as exc:
+        logger.exception("指令執行時發生未預期錯誤 (user_id=%d): %s", user_id, exc)
+        reply_text = "系統發生錯誤，請稍後再試。"
 
     try:
         messaging_api.reply_message(

@@ -85,7 +85,7 @@ def handle_postback(event: PostbackEvent, messaging_api: MessagingApi) -> None:
     postback_data: str = event.postback.data or ""
     action, _params = _parse_action(postback_data)
 
-    # 取得資料庫中的 user_id，找不到則自動建立，再 fallback 到 1
+    # 取得資料庫中的 user_id，找不到則自動建立
     user_id: int | None = None
     if action in ("view_trips", "split", "add_txn"):
         try:
@@ -97,10 +97,6 @@ def handle_postback(event: PostbackEvent, messaging_api: MessagingApi) -> None:
         if user_id is None:
             try:
                 with sqlite3.connect(DB_PATH) as conn:
-                    cursor = conn.execute("PRAGMA table_info(users)")
-                    columns = [row[1] for row in cursor.fetchall()]
-                    if "line_user_id" not in columns:
-                        conn.execute("ALTER TABLE users ADD COLUMN line_user_id TEXT")
                     conn.execute(
                         """INSERT INTO users (username, display_name, line_user_id)
                            VALUES (?, ?, ?)
@@ -115,7 +111,17 @@ def handle_postback(event: PostbackEvent, messaging_api: MessagingApi) -> None:
                 logger.error("自動建立使用者失敗 (line_user_id=%s): %s", line_user_id, exc)
 
         if user_id is None:
-            user_id = 1  # fallback 示範資料
+            logger.warning("無法取得或建立使用者 (line_user_id=%s)，拒絕服務", line_user_id)
+            try:
+                messaging_api.reply_message(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[TextMessage(text="帳號建立失敗，請稍後再試或聯繫客服。")],
+                    )
+                )
+            except Exception as exc:
+                logger.error("回覆錯誤訊息失敗 (line_user_id=%s): %s", line_user_id, exc)
+            return
 
     reply_text: str
 
@@ -128,7 +134,7 @@ def handle_postback(event: PostbackEvent, messaging_api: MessagingApi) -> None:
             reply_text = "查詢旅行時發生錯誤，請稍後再試。"
 
     elif action == "add_txn":
-        liff_url = _LIFF_URL_TEMPLATE.format(liff_id=LIFF_ID) if LIFF_ID else f"https://travelwallet-web.onrender.com"
+        liff_url = _LIFF_URL_TEMPLATE.format(liff_id=LIFF_ID) if LIFF_ID else "https://travelwallet-web.onrender.com"
         reply_text = f"請開啟 TravelWallet 新增交易：\n{liff_url}"
 
     elif action == "split":
@@ -151,7 +157,7 @@ def handle_postback(event: PostbackEvent, messaging_api: MessagingApi) -> None:
 
     else:
         logger.warning("收到未知 postback action: %s (data=%s)", action, postback_data)
-        reply_text = f"未知的操作：{action}"
+        reply_text = "無法識別的操作，請重新選擇。"
 
     try:
         messaging_api.reply_message(
