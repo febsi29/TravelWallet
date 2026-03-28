@@ -28,7 +28,7 @@ services:
     name: travelwallet-bot
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python init_db.py && python -m database.seed_data && uvicorn linebot_app.webhook:app --host 0.0.0.0 --port $PORT
+    startCommand: python init_db.py && uvicorn linebot_app.webhook:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DB_PATH
         value: /data/travel_wallet.db
