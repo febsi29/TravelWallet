@@ -1,11 +1,60 @@
 import streamlit as st
-import os, sys, pandas as pd
+import os, sys, sqlite3, pandas as pd
+from datetime import date, timedelta
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if BASE_DIR not in sys.path: sys.path.insert(0, BASE_DIR)
+DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 from src.planner import TripPlanner, DESTINATION_FACTORS, CATEGORY_RATIOS
 
 st.title("行程規劃")
+
+# --- 建立新旅行 ---
+with st.expander("建立新旅行", expanded=True):
+    uid = st.session_state.get("user_id", 1)
+    f1, f2 = st.columns(2)
+    with f1:
+        trip_name = st.text_input("旅行名稱", placeholder="例：東京五日遊")
+    with f2:
+        dest_new = st.selectbox("目的地", list(DESTINATION_FACTORS.keys()), key="new_dest")
+    d1, d2 = st.columns(2)
+    with d1:
+        start = st.date_input("出發日期", value=date.today() + timedelta(days=30))
+    with d2:
+        end = st.date_input("回程日期", value=date.today() + timedelta(days=35))
+    b1, b2 = st.columns(2)
+    with b1:
+        currency = st.selectbox("主幣別", ["JPY", "TWD", "USD", "KRW", "THB"], key="new_cur")
+    with b2:
+        budget = st.number_input("每人預算 (NT$)", min_value=0, step=1000, value=30000)
+
+    if st.button("建立旅行", type="primary", use_container_width=True):
+        if not trip_name.strip():
+            st.error("請填寫旅行名稱")
+        elif end <= start:
+            st.error("回程日期必須在出發日期之後")
+        else:
+            try:
+                with sqlite3.connect(DB_PATH) as conn:
+                    cur = conn.execute(
+                        """INSERT INTO trips (user_id, trip_name, destination, currency_code,
+                           start_date, end_date, total_budget, status)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, 'planning')""",
+                        (uid, trip_name.strip(), dest_new, currency,
+                         start.isoformat(), end.isoformat(), budget)
+                    )
+                    trip_id = cur.lastrowid
+                    conn.execute(
+                        "INSERT OR IGNORE INTO trip_members (trip_id, user_id) VALUES (?, ?)",
+                        (trip_id, uid)
+                    )
+                st.success(f"旅行「{trip_name.strip()}」已建立！前往「交易紀錄」或「分帳中心」開始記帳。")
+                st.cache_data.clear()
+                st.rerun()
+            except Exception as e:
+                st.error(f"建立失敗：{e}")
+
+st.markdown("---")
 st.caption("依據政府統計資料的預算建議")
 planner = TripPlanner()
 
