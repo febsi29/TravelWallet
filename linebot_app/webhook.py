@@ -6,6 +6,7 @@ LINE Bot Webhook 入口點。
 """
 
 import logging
+import threading
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -31,6 +32,20 @@ from linebot_app.handlers.postback_handler import handle_postback
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="TravelWallet LINE Bot")
+
+
+@app.on_event("startup")
+async def _seed_on_startup() -> None:
+    """在背景執行 seed_data，不阻擋 port 綁定。"""
+    def _run() -> None:
+        try:
+            from database import seed_data  # noqa: F401 — 執行即觸發 seed
+            logger.info("seed_data 執行完成")
+        except Exception as exc:
+            logger.warning("seed_data 執行失敗（非致命）: %s", exc)
+
+    threading.Thread(target=_run, daemon=True).start()
+
 
 # 初始化 LINE SDK 元件
 _configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
