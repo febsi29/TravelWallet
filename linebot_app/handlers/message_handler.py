@@ -238,7 +238,29 @@ def handle_text_message(event: MessageEvent, messaging_api: MessagingApi) -> Non
         user_id = None
 
     if user_id is None:
-        reply_text = "請先加我為好友重新綁定，或確認已完成帳號連結。"
+        # 自動建立帳號（取得 profile 名稱後 upsert）
+        try:
+            with sqlite3.connect(DB_PATH) as conn:
+                cursor = conn.execute("PRAGMA table_info(users)")
+                columns = [row[1] for row in cursor.fetchall()]
+                if "line_user_id" not in columns:
+                    conn.execute("ALTER TABLE users ADD COLUMN line_user_id TEXT")
+                conn.execute(
+                    """INSERT INTO users (username, display_name, line_user_id)
+                       VALUES (?, ?, ?)
+                       ON CONFLICT(username) DO UPDATE SET line_user_id = excluded.line_user_id""",
+                    (line_user_id, line_user_id, line_user_id),
+                )
+                cursor2 = conn.execute(
+                    "SELECT user_id FROM users WHERE line_user_id = ?", (line_user_id,)
+                )
+                row = cursor2.fetchone()
+                user_id = int(row[0]) if row else None
+        except sqlite3.Error as exc:
+            logger.error("自動建立使用者失敗 (line_user_id=%s): %s", line_user_id, exc)
+
+    if user_id is None:
+        reply_text = "系統發生錯誤，請稍後再試。"
     else:
         try:
             reply_text = _dispatch_command(text, user_id)
