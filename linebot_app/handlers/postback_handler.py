@@ -85,38 +85,59 @@ def handle_postback(event: PostbackEvent, messaging_api: MessagingApi) -> None:
     postback_data: str = event.postback.data or ""
     action, _params = _parse_action(postback_data)
 
-    # 取得資料庫中的 user_id（部分 action 需要）
+    # 取得資料庫中的 user_id，找不到則自動建立，再 fallback 到 1
     user_id: int | None = None
-    if action in ("view_trips", "split"):
+    if action in ("view_trips", "split", "add_txn"):
         try:
             with sqlite3.connect(DB_PATH) as conn:
                 user_id = _lookup_user_id_by_line_id(conn, line_user_id)
         except sqlite3.Error as exc:
             logger.error("查詢使用者 ID 失敗 (line_user_id=%s): %s", line_user_id, exc)
 
+        if user_id is None:
+            try:
+                with sqlite3.connect(DB_PATH) as conn:
+                    cursor = conn.execute("PRAGMA table_info(users)")
+                    columns = [row[1] for row in cursor.fetchall()]
+                    if "line_user_id" not in columns:
+                        conn.execute("ALTER TABLE users ADD COLUMN line_user_id TEXT")
+                    conn.execute(
+                        """INSERT INTO users (username, display_name, line_user_id)
+                           VALUES (?, ?, ?)
+                           ON CONFLICT(username) DO UPDATE SET line_user_id = excluded.line_user_id""",
+                        (line_user_id, line_user_id, line_user_id),
+                    )
+                    row = conn.execute(
+                        "SELECT user_id FROM users WHERE line_user_id = ?", (line_user_id,)
+                    ).fetchone()
+                    user_id = int(row[0]) if row else None
+            except sqlite3.Error as exc:
+                logger.error("自動建立使用者失敗 (line_user_id=%s): %s", line_user_id, exc)
+
+        if user_id is None:
+            user_id = 1  # fallback 示範資料
+
     reply_text: str
 
     if action == "view_trips":
-        if user_id is None:
-            reply_text = "請先加我為好友重新綁定，或確認已完成帳號連結。"
-        else:
-            try:
-                with sqlite3.connect(DB_PATH) as conn:
-                    reply_text = _cmd_list_trips(conn, user_id)
-            except sqlite3.Error as exc:
-                logger.error("查詢旅行失敗 (user_id=%d): %s", user_id, exc)
-                reply_text = "查詢旅行時發生錯誤，請稍後再試。"
+        try:
+            with sqlite3.connect(DB_PATH) as conn:
+                reply_text = _cmd_list_trips(conn, user_id)
+        except sqlite3.Error as exc:
+            logger.error("查詢旅行失敗 (user_id=%d): %s", user_id, exc)
+            reply_text = "查詢旅行時發生錯誤，請稍後再試。"
+
+    elif action == "add_txn":
+        liff_url = _LIFF_URL_TEMPLATE.format(liff_id=LIFF_ID) if LIFF_ID else f"https://travelwallet-web.onrender.com"
+        reply_text = f"請開啟 TravelWallet 新增交易：\n{liff_url}"
 
     elif action == "split":
-        if user_id is None:
-            reply_text = "請先加我為好友重新綁定，或確認已完成帳號連結。"
-        else:
-            try:
-                with sqlite3.connect(DB_PATH) as conn:
-                    reply_text = _cmd_split(conn, user_id)
-            except sqlite3.Error as exc:
-                logger.error("查詢分帳失敗 (user_id=%d): %s", user_id, exc)
-                reply_text = "查詢分帳時發生錯誤，請稍後再試。"
+        try:
+            with sqlite3.connect(DB_PATH) as conn:
+                reply_text = _cmd_split(conn, user_id)
+        except sqlite3.Error as exc:
+            logger.error("查詢分帳失敗 (user_id=%d): %s", user_id, exc)
+            reply_text = "查詢分帳時發生錯誤，請稍後再試。"
 
     elif action == "exchange":
         reply_text = _build_exchange_summary()
