@@ -65,7 +65,7 @@ with st.expander("新增交易"):
     CATEGORIES = ["餐飲", "交通", "住宿", "購物", "娛樂", "其他"]
 
     with sqlite3.connect(DB_PATH) as _conn:
-        _users = pd.read_sql_query("SELECT user_id, name FROM users", _conn)
+        _users = pd.read_sql_query("SELECT user_id, display_name AS name FROM users", _conn)
         _members = pd.read_sql_query(
             "SELECT user_id FROM trip_members WHERE trip_id = ?", _conn, params=(trip_id,)
         )
