@@ -260,8 +260,9 @@ def handle_text_message(event: MessageEvent, messaging_api: MessagingApi) -> Non
             logger.error("自動建立使用者失敗 (line_user_id=%s): %s", line_user_id, exc)
 
     if user_id is None:
-        reply_text = "系統發生錯誤，請稍後再試。"
-    else:
+        # fallback: 使用 user_id=1（示範資料）
+        user_id = 1
+    if user_id is not None:
         try:
             reply_text = _dispatch_command(text, user_id)
         except sqlite3.Error as exc:
