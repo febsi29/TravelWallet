@@ -22,7 +22,7 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import PostbackEvent
 
-from config.settings import DB_PATH, LIFF_ID
+from config.settings import DB_PATH, LIFF_ID, STREAMLIT_URL
 from linebot_app.handlers.message_handler import (
     _lookup_user_id_by_line_id,
     _cmd_list_trips,
@@ -143,8 +143,11 @@ def handle_postback(event: PostbackEvent, messaging_api: MessagingApi) -> None:
         reply_text = _build_exchange_summary()
 
     elif action == "open_app":
-        liff_url = _LIFF_URL_TEMPLATE.format(liff_id=LIFF_ID) if LIFF_ID else "#"
-        reply_text = f"點選以下連結開啟 TravelWallet：\n{liff_url}"
+        if LIFF_ID:
+            app_url = _LIFF_URL_TEMPLATE.format(liff_id=LIFF_ID)
+        else:
+            app_url = STREAMLIT_URL or "https://travelwallet-web.onrender.com"
+        reply_text = f"點選以下連結開啟 TravelWallet：\n{app_url}"
 
     else:
         logger.warning("收到未知 postback action: %s (data=%s)", action, postback_data)
