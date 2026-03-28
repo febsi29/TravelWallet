@@ -125,7 +125,7 @@ class ReceiptOCR:
         import tempfile
         abs_path = os.path.realpath(image_path)
         tmp_dir = os.path.realpath(tempfile.gettempdir())
-        if not abs_path.startswith(tmp_dir):
+        if not abs_path.startswith(tmp_dir + os.sep) and abs_path != tmp_dir:
             raise ValueError("image_path 必須位於系統暫存目錄內")
 
         raw_text = self._do_ocr(image_path)

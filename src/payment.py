@@ -132,17 +132,16 @@ class PaymentService:
         to_name: str,
     ) -> str:
         """建立各平台的付款連結（模擬）"""
+        from urllib.parse import urlencode
         memo = f"TravelWallet-{from_name}-to-{to_name}"
 
         if provider == "line_pay":
-            return (
-                f"https://line.me/pay/request?"
-                f"amount={amount}&currency={currency}&memo={memo}"
+            return "https://line.me/pay/request?" + urlencode(
+                {"amount": amount, "currency": currency, "memo": memo}
             )
         elif provider == "jko_pay":
-            return (
-                f"https://payment.jkopay.com/request?"
-                f"amount={amount}&currency={currency}&note={memo}"
+            return "https://payment.jkopay.com/request?" + urlencode(
+                {"amount": amount, "currency": currency, "note": memo}
             )
         elif provider == "paypal":
             return f"https://paypal.me/TravelWallet/{amount}{currency}"
