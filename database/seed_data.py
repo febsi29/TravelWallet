@@ -23,14 +23,14 @@ random.seed(42)
 # 使用者
 # ================================================================
 USERS = [
-    {"username": "demo_a",   "display_name": "示範使用者 A"},   # 0
-    {"username": "demo_b",     "display_name": "示範使用者 B"},   # 1
-    {"username": "demo_c",    "display_name": "示範使用者 C"},   # 2
-    {"username": "demo_d",  "display_name": "示範使用者 D"},   # 3
-    {"username": "demo_e",    "display_name": "示範使用者 E"},   # 4
-    {"username": "demo_f",   "display_name": "示範使用者 F"},   # 5
-    {"username": "demo_g",    "display_name": "示範使用者 G"},   # 6
-    {"username": "demo_h",    "display_name": "示範使用者 H"},   # 7
+    {"username": "tokyo_0315",   "display_name": "示範使用者 A"},      # 0 — 主帳號
+    {"username": "tokyo_0316",   "display_name": "東京 114/03/16"}, # 1
+    {"username": "tokyo_0317",   "display_name": "東京 114/03/17"}, # 2
+    {"username": "tokyo_0318",   "display_name": "東京 114/03/18"}, # 3
+    {"username": "seoul_0501",   "display_name": "首爾 114/05/01"}, # 4
+    {"username": "seoul_0502",   "display_name": "首爾 114/05/02"}, # 5
+    {"username": "okinawa_0815", "display_name": "沖繩 114/08/15"}, # 6
+    {"username": "okinawa_0816", "display_name": "沖繩 114/08/16"}, # 7
 ]
 
 # ================================================================
