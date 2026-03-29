@@ -22,22 +22,27 @@ if trips.empty:
 selected = st.selectbox("選擇旅行", trips["trip_name"].tolist())
 trip_id = int(trips[trips["trip_name"]==selected]["trip_id"].values[0])
 
-tab1,tab2,tab3,tab4 = st.tabs(["個人 vs 全國","類別分析","每日趨勢","分帳行為"])
+tab1,tab2,tab3,tab4 = st.tabs(["本團 vs 全國","類別分析","每日趨勢","分帳行為"])
 
 with tab1:
     pvn = ana.personal_vs_national(trip_id)
     p,n,c = pvn["personal"],pvn["national"],pvn["comparison"]
-    c1,c2,c3 = st.columns(3)
-    c1.metric("每人花費", f"NT${p['per_person_total']:,}")
+    # 從 DB 取成員數與全團總計
+    with sqlite3.connect(DB_PATH) as _c:
+        nm = _c.execute("SELECT COUNT(*) FROM trip_members WHERE trip_id=?", (trip_id,)).fetchone()[0]
+        tot = _c.execute("SELECT COALESCE(SUM(amount_twd),0) FROM transactions WHERE trip_id=?", (trip_id,)).fetchone()[0]
+    c0,c1,c2,c3 = st.columns(4)
+    c0.metric("全團總計", f"NT${tot:,.0f}", help=f"{nm} 人")
+    c1.metric("每人平均", f"NT${p['per_person_total']:,}")
     c2.metric(f"全國平均（{n['year']}）", f"NT${n['avg_total']:,.0f}")
     c3.metric("差距", f"{c['diff_pct']:+.1f}%", delta=f"NT${c['diff_total']:+,.0f}")
     st.info(c["verdict"])
     import plotly.graph_objects as go
     fig = go.Figure(data=[
-        go.Bar(name="本次行程", x=["總計","每日"], y=[p["per_person_total"],p["per_person_daily"]], marker_color="#2563EB"),
-        go.Bar(name="全國平均", x=["總計","每日"], y=[n["avg_total"],n["avg_daily"]], marker_color="#93C5FD"),
+        go.Bar(name="本團每人平均", x=["行程總計","每日平均"], y=[p["per_person_total"],p["per_person_daily"]], marker_color="#2563EB"),
+        go.Bar(name="全國每人平均", x=["行程總計","每日平均"], y=[n["avg_total"],n["avg_daily"]], marker_color="#93C5FD"),
     ])
-    fig.update_layout(barmode="group", height=350)
+    fig.update_layout(barmode="group", height=350, yaxis_title="NT$（每人）")
     st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
@@ -47,8 +52,8 @@ with tab2:
     natl = [c["national_pct"] for c in cat_comp]
     import plotly.graph_objects as go
     fig = go.Figure(data=[
-        go.Bar(name="個人", x=cats, y=pers, marker_color="#2563EB"),
-        go.Bar(name="全國", x=cats, y=natl, marker_color="#93C5FD"),
+        go.Bar(name="本團", x=cats, y=pers, marker_color="#2563EB"),
+        go.Bar(name="全國平均", x=cats, y=natl, marker_color="#93C5FD"),
     ])
     fig.update_layout(barmode="group", yaxis_title="百分比 (%)", height=400)
     st.plotly_chart(fig, use_container_width=True)
