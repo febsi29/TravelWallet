@@ -23,14 +23,14 @@ random.seed(42)
 # 使用者
 # ================================================================
 USERS = [
-    {"username": "junming",   "display_name": "俊名"},   # 0
-    {"username": "pinyu",     "display_name": "品伃"},   # 1
-    {"username": "hongyu",    "display_name": "宏育"},   # 2
-    {"username": "pincheng",  "display_name": "品澄"},   # 3
-    {"username": "hanwei",    "display_name": "漢威"},   # 4
-    {"username": "chenyun",   "display_name": "晨云"},   # 5
-    {"username": "yunhui",    "display_name": "筠慧"},   # 6
-    {"username": "naixin",    "display_name": "迺芯"},   # 7
+    {"username": "tokyo_0315",   "display_name": "俊名"},      # 0 — 主帳號
+    {"username": "tokyo_0316",   "display_name": "東京 114/03/16"}, # 1
+    {"username": "tokyo_0317",   "display_name": "東京 114/03/17"}, # 2
+    {"username": "tokyo_0318",   "display_name": "東京 114/03/18"}, # 3
+    {"username": "seoul_0501",   "display_name": "首爾 114/05/01"}, # 4
+    {"username": "seoul_0502",   "display_name": "首爾 114/05/02"}, # 5
+    {"username": "okinawa_0815", "display_name": "沖繩 114/08/15"}, # 6
+    {"username": "okinawa_0816", "display_name": "沖繩 114/08/16"}, # 7
 ]
 
 # ================================================================
