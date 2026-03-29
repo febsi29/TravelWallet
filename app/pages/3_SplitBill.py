@@ -28,15 +28,44 @@ cols = st.columns(len(balances))
 for i,(uid,info) in enumerate(balances.items()):
     with cols[i]:
         b = info["balance"]
-        lbl = "應收" if b>0 else ("應付" if b<0 else "已結清")
-        st.metric(info["name"], f"Y{b:,.0f}", delta=lbl)
+        if b > 0:
+            st.markdown(
+                f"<div style='text-align:center;padding:8px;border-radius:8px;background:#052e16'>"
+                f"<div style='font-size:13px;color:#86efac'>{info['name']}</div>"
+                f"<div style='font-size:20px;font-weight:bold;color:#4ade80'>+¥{b:,.0f}</div>"
+                f"<div style='font-size:12px;color:#86efac'>應收</div></div>",
+                unsafe_allow_html=True
+            )
+        elif b < 0:
+            st.markdown(
+                f"<div style='text-align:center;padding:8px;border-radius:8px;background:#450a0a'>"
+                f"<div style='font-size:13px;color:#fca5a5'>{info['name']}</div>"
+                f"<div style='font-size:20px;font-weight:bold;color:#f87171'>¥{b:,.0f}</div>"
+                f"<div style='font-size:12px;color:#fca5a5'>應付</div></div>",
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                f"<div style='text-align:center;padding:8px;border-radius:8px;background:#1c1917'>"
+                f"<div style='font-size:13px;color:#a8a29e'>{info['name']}</div>"
+                f"<div style='font-size:20px;font-weight:bold;color:#d6d3d1'>¥0</div>"
+                f"<div style='font-size:12px;color:#a8a29e'>已結清</div></div>",
+                unsafe_allow_html=True
+            )
 
 st.markdown("---")
 st.subheader("結算方案")
 transfers = engine.settle_trip(trip_id)
 if transfers:
     for t in transfers:
-        st.info(f"{t['from_name']} 付給 {t['to_name']}：Y{t['amount']:,.0f}（NT${t['amount_twd']:,}）")
+        st.markdown(
+            f"<div style='padding:10px;margin:6px 0;border-radius:8px;background:#1e3a5f'>"
+            f"<span style='color:#fca5a5;font-weight:bold'>{t['from_name']}</span>"
+            f" → <span style='color:#86efac;font-weight:bold'>{t['to_name']}</span>"
+            f"　<span style='color:#fbbf24;font-weight:bold'>¥{t['amount']:,.0f}</span>"
+            f" <span style='color:#94a3b8'>（NT${t['amount_twd']:,}）</span></div>",
+            unsafe_allow_html=True
+        )
     st.success(f"只需 {len(transfers)} 筆轉帳即可完成結算！")
 else:
     st.success("全部結清！")
