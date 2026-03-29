@@ -23,21 +23,21 @@ random.seed(42)
 # 使用者
 # ================================================================
 USERS = [
-    {"username": "tokyo_0315",   "display_name": "俊名"},      # 0 — 主帳號
-    {"username": "tokyo_0316",   "display_name": "東京 114/03/16"}, # 1
-    {"username": "tokyo_0317",   "display_name": "東京 114/03/17"}, # 2
-    {"username": "tokyo_0318",   "display_name": "東京 114/03/18"}, # 3
-    {"username": "seoul_0501",   "display_name": "首爾 114/05/01"}, # 4
-    {"username": "seoul_0502",   "display_name": "首爾 114/05/02"}, # 5
-    {"username": "okinawa_0815", "display_name": "沖繩 114/08/15"}, # 6
-    {"username": "okinawa_0816", "display_name": "沖繩 114/08/16"}, # 7
+    {"username": "junming",   "display_name": "俊名"},  # 0
+    {"username": "pinyu",     "display_name": "品伃"},  # 1
+    {"username": "hongyu",    "display_name": "宏育"},  # 2
+    {"username": "pincheng",  "display_name": "品澄"},  # 3
+    {"username": "hanwei",    "display_name": "漢威"},  # 4
+    {"username": "chenyun",   "display_name": "晨云"},  # 5
+    {"username": "yunhui",    "display_name": "筠慧"},  # 6
+    {"username": "naixin",    "display_name": "迺芯"},  # 7
 ]
 
 # ================================================================
 # Trip 1：東京自由行（俊名、品伃、宏育、品澄）
 # ================================================================
 TRIP1 = {
-    "trip_name": "2025 東京自由行",
+    "trip_name": "114/03/15 東京",
     "destination": "日本",
     "currency_code": "JPY",
     "start_date": "2025-03-15",
@@ -87,7 +87,7 @@ TRIP1_CUSTOM = {
 # Trip 2：首爾追星之旅（漢威、晨云、筠慧、迺芯）
 # ================================================================
 TRIP2 = {
-    "trip_name": "2025 首爾追星之旅",
+    "trip_name": "114/05/01 首爾",
     "destination": "韓國",
     "currency_code": "KRW",
     "start_date": "2025-05-01",
@@ -128,7 +128,7 @@ TRIP2_CUSTOM = {
 # Trip 3：清邁探索之旅（俊名、宏育、漢威、晨云）
 # ================================================================
 TRIP3 = {
-    "trip_name": "2025 清邁慢旅",
+    "trip_name": "114/07/10 清邁",
     "destination": "泰國",
     "currency_code": "THB",
     "start_date": "2025-07-10",
@@ -165,7 +165,7 @@ TRIP3_CUSTOM = {
 # Trip 4：沖繩海島行（品伃、品澄、筠慧、迺芯）
 # ================================================================
 TRIP4 = {
-    "trip_name": "2025 沖繩閨蜜行",
+    "trip_name": "114/08/15 沖繩",
     "destination": "日本",
     "currency_code": "JPY",
     "start_date": "2025-08-15",
@@ -201,7 +201,7 @@ TRIP4_CUSTOM = {
 # Trip 5：大阪美食之旅（全員 8 人）
 # ================================================================
 TRIP5 = {
-    "trip_name": "2025 大阪全員美食行",
+    "trip_name": "114/10/01 大阪",
     "destination": "日本",
     "currency_code": "JPY",
     "start_date": "2025-10-01",
