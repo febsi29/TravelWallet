@@ -23,21 +23,21 @@ random.seed(42)
 # 使用者
 # ================================================================
 USERS = [
-    {"username": "tokyo_0315",   "display_name": "示範使用者 A"},      # 0 — 主帳號
-    {"username": "tokyo_0316",   "display_name": "東京 114/03/16"}, # 1
-    {"username": "tokyo_0317",   "display_name": "東京 114/03/17"}, # 2
-    {"username": "tokyo_0318",   "display_name": "東京 114/03/18"}, # 3
-    {"username": "seoul_0501",   "display_name": "首爾 114/05/01"}, # 4
-    {"username": "seoul_0502",   "display_name": "首爾 114/05/02"}, # 5
-    {"username": "okinawa_0815", "display_name": "沖繩 114/08/15"}, # 6
-    {"username": "okinawa_0816", "display_name": "沖繩 114/08/16"}, # 7
+    {"username": "demo_a",   "display_name": "示範使用者 A"},  # 0
+    {"username": "demo_b",     "display_name": "示範使用者 B"},  # 1
+    {"username": "demo_c",    "display_name": "示範使用者 C"},  # 2
+    {"username": "demo_d",  "display_name": "示範使用者 D"},  # 3
+    {"username": "demo_e",    "display_name": "示範使用者 E"},  # 4
+    {"username": "demo_f",   "display_name": "示範使用者 F"},  # 5
+    {"username": "demo_g",    "display_name": "示範使用者 G"},  # 6
+    {"username": "demo_h",    "display_name": "示範使用者 H"},  # 7
 ]
 
 # ================================================================
 # Trip 1：東京自由行（示範使用者 A、示範使用者 B、示範使用者 C、示範使用者 D）
 # ================================================================
 TRIP1 = {
-    "trip_name": "2025 東京自由行",
+    "trip_name": "114/03/15 東京",
     "destination": "日本",
     "currency_code": "JPY",
     "start_date": "2025-03-15",
@@ -87,7 +87,7 @@ TRIP1_CUSTOM = {
 # Trip 2：首爾追星之旅（示範使用者 E、示範使用者 F、示範使用者 G、示範使用者 H）
 # ================================================================
 TRIP2 = {
-    "trip_name": "2025 首爾追星之旅",
+    "trip_name": "114/05/01 首爾",
     "destination": "韓國",
     "currency_code": "KRW",
     "start_date": "2025-05-01",
@@ -128,7 +128,7 @@ TRIP2_CUSTOM = {
 # Trip 3：清邁探索之旅（示範使用者 A、示範使用者 C、示範使用者 E、示範使用者 F）
 # ================================================================
 TRIP3 = {
-    "trip_name": "2025 清邁慢旅",
+    "trip_name": "114/07/10 清邁",
     "destination": "泰國",
     "currency_code": "THB",
     "start_date": "2025-07-10",
@@ -165,7 +165,7 @@ TRIP3_CUSTOM = {
 # Trip 4：沖繩海島行（示範使用者 B、示範使用者 D、示範使用者 G、示範使用者 H）
 # ================================================================
 TRIP4 = {
-    "trip_name": "2025 沖繩閨蜜行",
+    "trip_name": "114/08/15 沖繩",
     "destination": "日本",
     "currency_code": "JPY",
     "start_date": "2025-08-15",
@@ -201,7 +201,7 @@ TRIP4_CUSTOM = {
 # Trip 5：大阪美食之旅（全員 8 人）
 # ================================================================
 TRIP5 = {
-    "trip_name": "2025 大阪全員美食行",
+    "trip_name": "114/10/01 大阪",
     "destination": "日本",
     "currency_code": "JPY",
     "start_date": "2025-10-01",
