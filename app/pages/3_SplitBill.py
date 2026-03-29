@@ -22,53 +22,72 @@ selected = st.selectbox("選擇旅行", trips["trip_name"].tolist())
 trip_id = int(trips[trips["trip_name"]==selected]["trip_id"].values[0])
 
 st.markdown("---")
-st.subheader("各人餘額")
-balances = engine.get_net_balances(trip_id)
-cols = st.columns(len(balances))
-for i,(uid,info) in enumerate(balances.items()):
-    with cols[i]:
-        b = info["balance"]
-        if b > 0:
-            st.markdown(
-                f"<div style='text-align:center;padding:8px;border-radius:8px;background:#052e16'>"
-                f"<div style='font-size:13px;color:#86efac'>{info['name']}</div>"
-                f"<div style='font-size:20px;font-weight:bold;color:#4ade80'>+¥{b:,.0f}</div>"
-                f"<div style='font-size:12px;color:#86efac'>應收</div></div>",
-                unsafe_allow_html=True
-            )
-        elif b < 0:
-            st.markdown(
-                f"<div style='text-align:center;padding:8px;border-radius:8px;background:#450a0a'>"
-                f"<div style='font-size:13px;color:#fca5a5'>{info['name']}</div>"
-                f"<div style='font-size:20px;font-weight:bold;color:#f87171'>¥{b:,.0f}</div>"
-                f"<div style='font-size:12px;color:#fca5a5'>應付</div></div>",
-                unsafe_allow_html=True
-            )
-        else:
-            st.markdown(
-                f"<div style='text-align:center;padding:8px;border-radius:8px;background:#1c1917'>"
-                f"<div style='font-size:13px;color:#a8a29e'>{info['name']}</div>"
-                f"<div style='font-size:20px;font-weight:bold;color:#d6d3d1'>¥0</div>"
-                f"<div style='font-size:12px;color:#a8a29e'>已結清</div></div>",
-                unsafe_allow_html=True
-            )
+st.subheader("還款進度")
 
-st.markdown("---")
-st.subheader("結算方案")
-transfers = engine.settle_trip(trip_id)
-if transfers:
-    for t in transfers:
-        st.markdown(
-            f"<div style='padding:10px;margin:6px 0;border-radius:8px;background:#1e3a5f'>"
-            f"<span style='color:#fca5a5;font-weight:bold'>{t['from_name']}</span>"
-            f" → <span style='color:#86efac;font-weight:bold'>{t['to_name']}</span>"
-            f"　<span style='color:#fbbf24;font-weight:bold'>¥{t['amount']:,.0f}</span>"
-            f" <span style='color:#94a3b8'>（NT${t['amount_twd']:,}）</span></div>",
-            unsafe_allow_html=True
-        )
-    st.success(f"只需 {len(transfers)} 筆轉帳即可完成結算！")
+# 從 settlements 讀取實際記錄（有 status）
+with sqlite3.connect(DB_PATH) as _sc:
+    _sdf = pd.read_sql_query("""
+        SELECT s.settlement_id, s.from_user, s.to_user,
+               s.amount, s.currency_code, s.amount_twd, s.status,
+               fu.display_name AS from_name, tu.display_name AS to_name
+        FROM settlements s
+        JOIN users fu ON s.from_user = fu.user_id
+        JOIN users tu ON s.to_user   = tu.user_id
+        WHERE s.trip_id = ?
+        ORDER BY s.settlement_id
+    """, _sc, params=(trip_id,))
+
+if _sdf.empty:
+    # 尚無 settlements 記錄，用即時計算結果顯示
+    transfers = engine.settle_trip(trip_id)
+    if transfers:
+        for t in transfers:
+            st.markdown(
+                f"<div style='padding:10px;margin:6px 0;border-radius:8px;background:#1e3a5f'>"
+                f"<span style='color:#fca5a5;font-weight:bold'>{t['from_name']}</span>"
+                f" → <span style='color:#86efac;font-weight:bold'>{t['to_name']}</span>"
+                f"　<span style='color:#fbbf24;font-weight:bold'>¥{t['amount']:,.0f}</span>"
+                f" <span style='color:#94a3b8'>（NT${t['amount_twd']:,}）</span></div>",
+                unsafe_allow_html=True
+            )
+    else:
+        st.success("全部結清！")
 else:
-    st.success("全部結清！")
+    done = (_sdf["status"] == "completed").sum()
+    total_s = len(_sdf)
+    st.progress(done / total_s, text=f"已還款 {done} / {total_s} 筆")
+    for _, row in _sdf.iterrows():
+        paid = row["status"] == "completed"
+        col_card, col_btn = st.columns([5, 1])
+        bg = "#052e16" if paid else "#1e3a5f"
+        badge = "<span style='color:#4ade80'>✓ 已還</span>" if paid else "<span style='color:#fbbf24'>⏳ 未還</span>"
+        with col_card:
+            st.markdown(
+                f"<div style='padding:10px;border-radius:8px;background:{bg};margin:4px 0'>"
+                f"<span style='color:#fca5a5;font-weight:bold'>{row['from_name']}</span>"
+                f" → <span style='color:#86efac;font-weight:bold'>{row['to_name']}</span>"
+                f"　<span style='color:#fbbf24;font-weight:bold'>{row['currency_code']} {row['amount']:,.0f}</span>"
+                f" <span style='color:#94a3b8'>（NT${row['amount_twd']:,.0f}）</span>"
+                f"　{badge}</div>",
+                unsafe_allow_html=True
+            )
+        with col_btn:
+            if not paid:
+                if st.button("標記已還", key=f"settle_{row['settlement_id']}"):
+                    with sqlite3.connect(DB_PATH) as _uc:
+                        _uc.execute(
+                            "UPDATE settlements SET status='completed', settled_at=datetime('now') WHERE settlement_id=?",
+                            (int(row["settlement_id"]),)
+                        )
+                    st.rerun()
+            else:
+                if st.button("取消", key=f"unsettle_{row['settlement_id']}"):
+                    with sqlite3.connect(DB_PATH) as _uc:
+                        _uc.execute(
+                            "UPDATE settlements SET status='pending', settled_at=NULL WHERE settlement_id=?",
+                            (int(row["settlement_id"]),)
+                        )
+                    st.rerun()
 
 st.markdown("---")
 st.subheader("行程摘要")
@@ -94,22 +113,21 @@ with st.expander("新增交易"):
     CATEGORIES = ["餐飲", "交通", "住宿", "購物", "娛樂", "其他"]
 
     with sqlite3.connect(DB_PATH) as _conn:
-        _users = pd.read_sql_query("SELECT user_id, display_name AS name FROM users", _conn)
+        _all_users = pd.read_sql_query("SELECT user_id, display_name AS name FROM users", _conn)
         _members = pd.read_sql_query(
             "SELECT user_id FROM trip_members WHERE trip_id = ?", _conn, params=(trip_id,)
         )
 
     member_ids = set(_members["user_id"].tolist())
-    member_users = _users[_users["user_id"].isin(member_ids)]
 
-    if member_users.empty:
+    if not member_ids:
         st.warning("此行程尚無成員，請先新增成員。")
     else:
         desc = st.text_input("說明", key="tx_desc")
         amount = st.number_input("金額", min_value=0.0, step=1.0, key="tx_amount")
         currency = st.selectbox("幣別", ["JPY", "TWD", "USD"], key="tx_currency")
-        payer_name = st.selectbox("付款人", member_users["name"].tolist(), key="tx_payer")
-        payer_id = int(member_users[member_users["name"] == payer_name]["user_id"].values[0])
+        payer_name = st.selectbox("付款人", _all_users["name"].tolist(), key="tx_payer")
+        payer_id = int(_all_users[_all_users["name"] == payer_name]["user_id"].values[0])
         category = st.selectbox("類別", CATEGORIES, key="tx_category")
         split_method = st.selectbox("分帳方式", ["平均", "自訂"], key="tx_split")
 
