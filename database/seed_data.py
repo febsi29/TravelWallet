@@ -1,8 +1,12 @@
 """
 seed_data.py - 種子資料生成腳本
 
-生成模擬的使用者、旅行、交易、分帳資料供開發與展示用
-情境：4 個好朋友 2025 年去日本東京 5 天自由行
+8 位使用者，5 趟不同組合的旅行：
+  Trip 1: 東京自由行    - 俊名、品伃、宏育、品澄（4人）
+  Trip 2: 首爾追星之旅  - 漢威、晨云、筠慧、迺芯（4人）
+  Trip 3: 清邁探索之旅  - 俊名、宏育、漢威、晨云（4人）
+  Trip 4: 沖繩海島行    - 品伃、品澄、筠慧、迺芯（4人）
+  Trip 5: 大阪美食之旅  - 全員 8 人
 """
 
 import sqlite3
@@ -10,348 +14,398 @@ import os
 import random
 from datetime import datetime, timedelta
 
-# 路徑設定
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
-SAMPLE_DIR = os.path.join(BASE_DIR, "data", "sample")
 
+random.seed(42)
 
-# === 模擬資料 ===
-
+# ================================================================
+# 使用者
+# ================================================================
 USERS = [
-    {"username": "jaychou", "display_name": "周杰倫"},
-    {"username": "jjlin", "display_name": "林俊傑"},
-    {"username": "weibird", "display_name": "韋禮安"},
-    {"username": "jolin", "display_name": "蔡依林"},
+    {"username": "junming",   "display_name": "俊名"},   # 0
+    {"username": "pinyu",     "display_name": "品伃"},   # 1
+    {"username": "hongyu",    "display_name": "宏育"},   # 2
+    {"username": "pincheng",  "display_name": "品澄"},   # 3
+    {"username": "hanwei",    "display_name": "漢威"},   # 4
+    {"username": "chenyun",   "display_name": "晨云"},   # 5
+    {"username": "yunhui",    "display_name": "筠慧"},   # 6
+    {"username": "naixin",    "display_name": "迺芯"},   # 7
 ]
 
-TRIP = {
+# ================================================================
+# Trip 1：東京自由行（俊名、品伃、宏育、品澄）
+# ================================================================
+TRIP1 = {
     "trip_name": "2025 東京自由行",
     "destination": "日本",
     "currency_code": "JPY",
     "start_date": "2025-03-15",
-    "end_date": "2025-03-19",
-    "total_budget": 120000,   # NT$120,000
+    "end_date":   "2025-03-19",
+    "total_budget": 120000,
     "status": "completed",
+    "members": [0, 1, 2, 3],
+    "creator": 0,
+    "rate": 0.217,
+}
+# (day, hour, min, payer_idx_in_members, amount, category, desc, location, split_type)
+TRIP1_TXN = [
+    (0, 14, 30, 0, 3200,  "交通", "成田機場→新宿 N'EX",      "成田機場", "equal"),
+    (0, 18, 30, 2, 40000, "住宿", "新宿旅館 第1晚",           "新宿",     "equal"),
+    (0, 20,  0, 3,  2400, "餐飲", "便利商店宵夜",             "新宿",     "equal"),
+    (1,  8,  0, 0,  4800, "餐飲", "飯店早餐",                 "新宿",     "equal"),
+    (1,  9, 30, 1,  1200, "交通", "地鐵到淺草",               "淺草",     "equal"),
+    (1, 12,  0, 2,  8000, "餐飲", "淺草炸蝦天丼 4人",         "淺草",     "equal"),
+    (1, 14,  0, 3,  8800, "娛樂", "晴空塔門票 4人",           "晴空塔",   "equal"),
+    (1, 19,  0, 0, 16000, "餐飲", "居酒屋晚餐 4人",           "淺草",     "equal"),
+    (1, 21,  0, 1, 40000, "住宿", "新宿旅館 第2晚",           "新宿",     "equal"),
+    (2,  9,  0, 2,  3600, "餐飲", "原宿鬆餅早午餐",           "原宿",     "equal"),
+    (2, 11,  0, 3, 15000, "購物", "竹下通逛街",               "原宿",     "custom"),
+    (2, 13,  0, 0,  6000, "餐飲", "澀谷拉麵午餐",             "澀谷",     "equal"),
+    (2, 15,  0, 1, 28000, "購物", "藥妝店採購",               "澀谷",     "custom"),
+    (2, 19,  0, 2, 24000, "餐飲", "燒肉晚餐 4人",             "澀谷",     "equal"),
+    (2, 21,  0, 3, 40000, "住宿", "新宿旅館 第3晚",           "新宿",     "equal"),
+    (3, 10,  0, 0, 35000, "購物", "秋葉原電器/公仔",          "秋葉原",   "custom"),
+    (3, 13,  0, 1,  5200, "餐飲", "秋葉原咖哩飯 4人",         "秋葉原",   "equal"),
+    (3, 19,  0, 2, 20000, "餐飲", "壽司晚餐 4人",             "上野",     "equal"),
+    (3, 21,  0, 3, 40000, "住宿", "新宿旅館 第4晚",           "新宿",     "equal"),
+    (4,  8,  0, 0,  4000, "餐飲", "最後早餐",                 "新宿",     "equal"),
+    (4, 10, 30, 1, 18000, "購物", "東京車站伴手禮",            "東京車站", "custom"),
+    (4, 12,  0, 2,  3200, "交通", "新宿→成田機場",            "成田機場", "equal"),
+    # 異常交易（供異常偵測展示）
+    (3, 22,  0, 0, 98000, "購物", "秋葉原限定版公仔（個人）", "秋葉原",  "custom"),
+]
+TRIP1_CUSTOM = {
+    10: {0: 8000, 1: 3000, 2: 2000, 3: 2000},
+    12: {0: 5000, 1: 8000, 2: 10000, 3: 5000},
+    15: {0: 30000, 1: 2000, 2: 2000, 3: 1000},
+    21: {0: 4000, 1: 6000, 2: 4000, 3: 4000},
+    22: {0: 98000},
 }
 
-# 匯率：1 JPY = 0.217 TWD（模擬值）
-JPY_TO_TWD = 0.217
+# ================================================================
+# Trip 2：首爾追星之旅（漢威、晨云、筠慧、迺芯）
+# ================================================================
+TRIP2 = {
+    "trip_name": "2025 首爾追星之旅",
+    "destination": "韓國",
+    "currency_code": "KRW",
+    "start_date": "2025-05-01",
+    "end_date":   "2025-05-04",
+    "total_budget": 50000,
+    "status": "completed",
+    "members": [4, 5, 6, 7],
+    "creator": 4,
+    "rate": 0.024,
+}
+TRIP2_TXN = [
+    (0, 15,  0, 0, 180000, "交通", "仁川機場→明洞 機場鐵路", "仁川機場", "equal"),
+    (0, 18,  0, 1, 320000, "住宿", "明洞旅館 第1晚",          "明洞",     "equal"),
+    (0, 20,  0, 2,  48000, "餐飲", "弘大燒烤晚餐 4人",        "弘大",     "equal"),
+    (1,  9,  0, 3,  32000, "餐飲", "早餐飯捲",                "明洞",     "equal"),
+    (1, 11,  0, 0, 120000, "娛樂", "SM Entertainment 導覽",   "清潭洞",   "equal"),
+    (1, 14,  0, 1,  56000, "餐飲", "江南炸雞午餐 4人",        "江南",     "equal"),
+    (1, 16,  0, 2, 240000, "購物", "K-beauty 保養品",         "明洞",     "custom"),
+    (1, 19,  0, 3, 320000, "住宿", "明洞旅館 第2晚",          "明洞",     "equal"),
+    (2,  9,  0, 0,  28000, "餐飲", "蔘雞湯早餐",              "仁寺洞",   "equal"),
+    (2, 11,  0, 1,  80000, "娛樂", "樂天世界門票 4人",        "蠶室",     "equal"),
+    (2, 14,  0, 2,  45000, "餐飲", "部隊鍋午餐",              "蠶室",     "equal"),
+    (2, 17,  0, 3, 160000, "購物", "東大門服飾採購",           "東大門",   "custom"),
+    (2, 19,  0, 0, 320000, "住宿", "明洞旅館 第3晚",          "明洞",     "equal"),
+    (3,  8,  0, 1,  24000, "餐飲", "出發前早餐",              "明洞",     "equal"),
+    (3, 10,  0, 2,  90000, "購物", "機場免稅店",               "仁川機場", "custom"),
+    # 異常交易
+    (2, 22,  0, 3, 980000, "購物", "限量聯名球鞋（個人）",    "明洞",     "custom"),
+]
+TRIP2_CUSTOM = {
+    6:  {0: 40000, 1: 60000, 2: 80000, 3: 60000},
+    11: {0: 50000, 1: 30000, 2: 40000, 3: 40000},
+    14: {0: 20000, 1: 30000, 2: 40000},
+    15: {3: 980000},
+}
 
-# 模擬交易資料（真實感的東京旅行消費）
-# (日期偏移, 時, 分, 付款人index, 金額JPY, 類別, 說明, 地點, 分帳方式)
-TRANSACTIONS = [
-    # === Day 1 (3/15) 抵達東京 ===
-    (0, 14, 30, 0, 3200, "交通", "成田機場到新宿 N'EX", "成田機場", "equal"),
-    (0, 17, 0, 1, 12000, "餐飲", "一蘭拉麵 4人", "新宿", "equal"),
-    (0, 18, 30, 2, 40000, "住宿", "新宿旅館 第1晚", "新宿", "equal"),
-    (0, 20, 0, 3, 2400, "餐飲", "便利商店宵夜", "新宿", "equal"),
+# ================================================================
+# Trip 3：清邁探索之旅（俊名、宏育、漢威、晨云）
+# ================================================================
+TRIP3 = {
+    "trip_name": "2025 清邁慢旅",
+    "destination": "泰國",
+    "currency_code": "THB",
+    "start_date": "2025-07-10",
+    "end_date":   "2025-07-14",
+    "total_budget": 30000,
+    "status": "completed",
+    "members": [0, 2, 4, 5],
+    "creator": 0,
+    "rate": 0.91,
+}
+TRIP3_TXN = [
+    # members local: 0=俊名, 1=宏育, 2=漢威, 3=晨云
+    (0, 13,  0, 0,  800, "交通", "清邁機場→古城 Grab",     "清邁機場", "equal"),
+    (0, 15,  0, 1, 2400, "住宿", "古城民宿 第1晚",          "清邁古城", "equal"),
+    (0, 18,  0, 2,  480, "餐飲", "夜市小吃 4人",            "週六夜市", "equal"),
+    (1,  8,  0, 3,  360, "餐飲", "咖啡廳早午餐",            "清邁古城", "equal"),
+    (1, 10,  0, 0, 1800, "娛樂", "大象保護園區門票 4人",    "清邁郊區", "equal"),
+    (1, 14,  0, 1,  320, "餐飲", "泰式炒河粉午餐",          "清邁",     "equal"),
+    (1, 16,  0, 2, 2400, "住宿", "古城民宿 第2晚",          "清邁古城", "equal"),
+    (1, 18,  0, 3, 1200, "娛樂", "泰拳表演門票 4人",        "尼曼路",   "equal"),
+    (2,  9,  0, 0,  280, "餐飲", "豬腳飯早餐",              "清邁",     "equal"),
+    (2, 10, 30, 1, 2400, "娛樂", "泰式古法按摩 4人",        "清邁古城", "equal"),
+    (2, 14,  0, 2,  560, "餐飲", "素食餐廳午餐",            "尼曼路",   "equal"),
+    (2, 16,  0, 3, 3600, "購物", "夜市手工藝品",            "週日夜市", "custom"),
+    (2, 19,  0, 0, 2400, "住宿", "古城民宿 第3晚",          "清邁古城", "equal"),
+    (3,  8,  0, 1,  400, "餐飲", "最後早餐 Khao Tom",       "清邁",     "equal"),
+    (3, 10,  0, 2,  800, "交通", "古城→機場 Grab",          "清邁機場", "equal"),
+]
+TRIP3_CUSTOM = {
+    11: {0: 800, 1: 1200, 2: 1000, 3: 600},
+}
 
-    # === Day 2 (3/16) 淺草 + 晴空塔 ===
-    (1, 8, 0, 0, 4800, "餐飲", "飯店附近早餐", "新宿", "equal"),
-    (1, 9, 30, 1, 1200, "交通", "地鐵到淺草", "淺草", "equal"),
-    (1, 12, 0, 2, 8000, "餐飲", "淺草炸蝦天丼 4人", "淺草", "equal"),
-    (1, 14, 0, 3, 8800, "娛樂", "晴空塔門票 4人", "晴空塔", "equal"),
-    (1, 16, 0, 0, 3500, "餐飲", "晴空塔咖啡廳", "晴空塔", "equal"),
-    (1, 18, 30, 1, 16000, "餐飲", "居酒屋晚餐 4人", "淺草", "equal"),
-    (1, 20, 0, 2, 40000, "住宿", "新宿旅館 第2晚", "新宿", "equal"),
+# ================================================================
+# Trip 4：沖繩海島行（品伃、品澄、筠慧、迺芯）
+# ================================================================
+TRIP4 = {
+    "trip_name": "2025 沖繩閨蜜行",
+    "destination": "日本",
+    "currency_code": "JPY",
+    "start_date": "2025-08-15",
+    "end_date":   "2025-08-18",
+    "total_budget": 80000,
+    "status": "completed",
+    "members": [1, 3, 6, 7],
+    "creator": 1,
+    "rate": 0.215,
+}
+TRIP4_TXN = [
+    # members local: 0=品伃, 1=品澄, 2=筠慧, 3=迺芯
+    (0, 14,  0, 0, 2400, "交通", "那霸機場→國際通 巴士",    "那霸機場", "equal"),
+    (0, 16,  0, 1,35000, "住宿", "美浜飯店 第1晚",           "北谷",     "equal"),
+    (0, 18,  0, 2, 8800, "餐飲", "沖繩料理晚餐 4人",         "國際通",   "equal"),
+    (1,  8,  0, 3, 3600, "餐飲", "飯店早餐",                 "北谷",     "equal"),
+    (1, 10,  0, 0,14000, "娛樂", "美麗海水族館門票 4人",     "本部",     "equal"),
+    (1, 13,  0, 1, 6400, "餐飲", "海景餐廳午餐 4人",         "本部",     "equal"),
+    (1, 16,  0, 2,35000, "住宿", "美浜飯店 第2晚",           "北谷",     "equal"),
+    (1, 18,  0, 3,12000, "餐飲", "美國村燒烤晚餐 4人",       "北谷",     "equal"),
+    (2,  9,  0, 0, 9600, "娛樂", "浮潛體驗 4人",             "恩納",     "equal"),
+    (2, 13,  0, 1, 4800, "餐飲", "塔可飯午餐 4人",           "恩納",     "equal"),
+    (2, 15,  0, 2,18000, "購物", "國際通伴手禮＋藥妝",       "國際通",   "custom"),
+    (2, 19,  0, 3,35000, "住宿", "美浜飯店 第3晚",           "北谷",     "equal"),
+    (3,  8,  0, 0, 4000, "餐飲", "最後早餐 沖繩麵",          "那霸",     "equal"),
+    (3, 10,  0, 1, 2400, "交通", "北谷→那霸機場 接駁",       "那霸機場", "equal"),
+]
+TRIP4_CUSTOM = {
+    10: {0: 6000, 1: 4000, 2: 5000, 3: 3000},
+}
 
-    # === Day 3 (3/17) 原宿 + 澀谷 ===
-    (2, 9, 0, 3, 3600, "餐飲", "原宿鬆餅早午餐", "原宿", "equal"),
-    (2, 11, 0, 0, 15000, "購物", "竹下通逛街", "原宿", "custom"),
-    (2, 13, 0, 1, 6000, "餐飲", "澀谷拉麵午餐 4人", "澀谷", "equal"),
-    (2, 15, 0, 2, 28000, "購物", "藥妝店採購", "澀谷", "custom"),
-    (2, 17, 0, 3, 4000, "餐飲", "澀谷甜點下午茶", "澀谷", "equal"),
-    (2, 19, 0, 0, 24000, "餐飲", "燒肉晚餐 4人", "澀谷", "equal"),
-    (2, 21, 0, 1, 40000, "住宿", "新宿旅館 第3晚", "新宿", "equal"),
+# ================================================================
+# Trip 5：大阪美食之旅（全員 8 人）
+# ================================================================
+TRIP5 = {
+    "trip_name": "2025 大阪全員美食行",
+    "destination": "日本",
+    "currency_code": "JPY",
+    "start_date": "2025-10-01",
+    "end_date":   "2025-10-05",
+    "total_budget": 250000,
+    "status": "planning",
+    "members": [0, 1, 2, 3, 4, 5, 6, 7],
+    "creator": 0,
+    "rate": 0.213,
+}
+TRIP5_TXN = [
+    (0, 13,  0, 0,  4800, "交通", "關西機場→難波 HARUKA",   "關西機場", "equal"),
+    (0, 16,  0, 1, 80000, "住宿", "道頓堀旅館 第1晚 8人",    "道頓堀",   "equal"),
+    (0, 19,  0, 2, 32000, "餐飲", "道頓堀章魚燒+大阪燒 8人", "道頓堀",   "equal"),
+    (1,  8,  0, 3,  9600, "餐飲", "黑門市場早餐 8人",        "黑門市場", "equal"),
+    (1, 10,  0, 4, 24000, "娛樂", "大阪城入場券 8人",        "大阪城",   "equal"),
+    (1, 13,  0, 5, 20000, "餐飲", "心齋橋串炸午餐 8人",      "心齋橋",   "equal"),
+    (1, 16,  0, 6, 56000, "購物", "心齋橋藥妝採購",           "心齋橋",   "custom"),
+    (1, 19,  0, 7, 48000, "餐飲", "難波燒肉晚餐 8人",        "難波",     "equal"),
+    (1, 21,  0, 0, 80000, "住宿", "道頓堀旅館 第2晚 8人",    "道頓堀",   "equal"),
+    (2,  8,  0, 1,  8000, "餐飲", "天滿橋早市",              "天滿橋",   "equal"),
+    (2, 10,  0, 2, 16000, "娛樂", "海遊館水族館 8人",        "大阪港",   "equal"),
+    (2, 14,  0, 3, 16000, "餐飲", "天保山海鮮午餐 8人",      "大阪港",   "equal"),
+    (2, 17,  0, 4, 32000, "娛樂", "萬聖節夜間活動（環球）",  "USJ",      "equal"),
+    (2, 21,  0, 5, 80000, "住宿", "道頓堀旅館 第3晚 8人",    "道頓堀",   "equal"),
+    (3,  9,  0, 6, 12000, "餐飲", "梅田早午餐",              "梅田",     "equal"),
+    (3, 11,  0, 7, 40000, "購物", "梅田 HEP FIVE 購物",      "梅田",     "custom"),
+    (3, 14,  0, 0, 24000, "餐飲", "梅田拉麵激戰區 8人",      "梅田",     "equal"),
+    (3, 17,  0, 1, 18000, "餐飲", "北新地居酒屋 8人",        "北新地",   "equal"),
+    (3, 21,  0, 2, 80000, "住宿", "道頓堀旅館 第4晚 8人",    "道頓堀",   "equal"),
+    (4,  8,  0, 3,  9600, "餐飲", "最後早餐 難波拉麵",       "難波",     "equal"),
+    (4, 10,  0, 4, 32000, "購物", "關西機場免稅店",           "關西機場", "custom"),
+    (4, 11,  0, 5,  4800, "交通", "難波→關西機場 HARUKA",    "關西機場", "equal"),
+]
+TRIP5_CUSTOM = {
+    6:  {0: 8000, 1: 10000, 2: 6000, 3: 8000, 4: 8000, 5: 6000, 6: 5000, 7: 5000},
+    15: {0: 6000, 1: 5000, 2: 4000, 3: 8000, 4: 5000, 5: 4000, 6: 4000, 7: 4000},
+    20: {0: 5000, 1: 4000, 2: 4000, 3: 5000, 4: 4000, 5: 3000, 6: 4000, 7: 3000},
+}
 
-    # === Day 4 (3/18) 秋葉原 + 上野 ===
-    (3, 8, 30, 2, 3200, "餐飲", "旅館附近吉野家", "新宿", "equal"),
-    (3, 10, 0, 3, 1200, "交通", "地鐵到秋葉原", "秋葉原", "equal"),
-    (3, 11, 0, 0, 35000, "購物", "秋葉原電器/公仔", "秋葉原", "custom"),
-    (3, 13, 0, 1, 5200, "餐飲", "秋葉原咖哩飯 4人", "秋葉原", "equal"),
-    (3, 15, 0, 2, 2400, "娛樂", "上野公園散步+抹茶", "上野", "equal"),
-    (3, 17, 30, 3, 9000, "購物", "上野阿美橫丁零食", "上野", "equal"),
-    (3, 19, 0, 0, 20000, "餐飲", "壽司晚餐 4人", "上野", "equal"),
-    (3, 21, 0, 1, 40000, "住宿", "新宿旅館 第4晚", "新宿", "equal"),
-    (3, 22, 0, 2, 6800, "餐飲", "新宿歌舞伎町宵夜串燒", "新宿", "equal"),
-
-    # === Day 5 (3/19) 最後一天 + 回程 ===
-    (4, 8, 0, 3, 4000, "餐飲", "最後早餐 吃好一點", "新宿", "equal"),
-    (4, 9, 0, 0, 40000, "住宿", "新宿旅館 第5晚", "新宿", "equal"),
-    (4, 10, 30, 1, 18000, "購物", "車站伴手禮 東京芭奈奈+薯條三兄弟", "東京車站", "custom"),
-    (4, 12, 0, 2, 3200, "交通", "新宿到成田機場", "成田機場", "equal"),
+ALL_TRIPS = [
+    (TRIP1, TRIP1_TXN, TRIP1_CUSTOM),
+    (TRIP2, TRIP2_TXN, TRIP2_CUSTOM),
+    (TRIP3, TRIP3_TXN, TRIP3_CUSTOM),
+    (TRIP4, TRIP4_TXN, TRIP4_CUSTOM),
+    (TRIP5, TRIP5_TXN, TRIP5_CUSTOM),
 ]
 
-# 自訂分帳的金額分配（購物類，每人買不同東西）
-CUSTOM_SPLITS = {
-    # (交易index): {user_index: JPY金額}
-    12: {0: 8000, 1: 3000, 2: 2000, 3: 2000},    # 竹下通逛街
-    14: {0: 5000, 1: 8000, 2: 10000, 3: 5000},    # 藥妝店
-    20: {0: 20000, 1: 5000, 2: 5000, 3: 5000},    # 秋葉原（小明買最多）
-    29: {0: 4000, 1: 5000, 2: 4000, 3: 5000},     # 伴手禮
-}
 
+# ================================================================
+# 工具函式
+# ================================================================
 
-# === 寫入資料庫 ===
-
-def seed_all():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    # 清除舊的種子資料（保留政府統計資料）
-    print("清除舊的種子資料...")
-    cursor.execute("DELETE FROM settlements")
-    cursor.execute("DELETE FROM split_details")
-    cursor.execute("DELETE FROM transactions")
-    cursor.execute("DELETE FROM trip_members")
-    cursor.execute("DELETE FROM trips")
-    cursor.execute("DELETE FROM users")
-
-    # --- 1. 建立使用者 ---
-    print("建立使用者...")
-    user_ids = []
-    for u in USERS:
-        cursor.execute(
-            "INSERT INTO users (username, display_name) VALUES (?, ?)",
-            (u["username"], u["display_name"])
-        )
-        user_ids.append(cursor.lastrowid)
-        print(f"   {u['display_name']} (id={cursor.lastrowid})")
-
-    # --- 2. 建立旅行 ---
-    print("建立旅行...")
-    cursor.execute("""
-        INSERT INTO trips (user_id, trip_name, destination, currency_code,
-                          start_date, end_date, total_budget, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        user_ids[0],   # 小明建立的旅行
-        TRIP["trip_name"], TRIP["destination"], TRIP["currency_code"],
-        TRIP["start_date"], TRIP["end_date"], TRIP["total_budget"], TRIP["status"]
-    ))
-    trip_id = cursor.lastrowid
-    print(f"   {TRIP['trip_name']} (id={trip_id})")
-
-    # --- 3. 加入旅行成員 ---
-    print("加入旅行成員...")
-    for uid, u in zip(user_ids, USERS):
-        cursor.execute(
-            "INSERT INTO trip_members (trip_id, user_id, nickname) VALUES (?, ?, ?)",
-            (trip_id, uid, u["display_name"])
-        )
-
-    # --- 4. 建立交易紀錄 + 分帳 ---
-    print("建立交易紀錄與分帳...")
-    start_date = datetime(2025, 3, 15)
-    txn_count = 0
-    split_count = 0
-
-    for i, txn in enumerate(TRANSACTIONS):
-        day_offset, hour, minute, payer_idx, amount_jpy, category, desc, location, split_type = txn
-
-        txn_datetime = start_date + timedelta(days=day_offset, hours=hour, minutes=minute)
-        amount_twd = round(amount_jpy * JPY_TO_TWD)
-        payer_id = user_ids[payer_idx]
-
-        # 隨機付款方式
-        payment = random.choice(["cash", "credit_card", "credit_card", "mobile_pay"])
-
-        cursor.execute("""
-            INSERT INTO transactions
-            (trip_id, paid_by, amount, currency_code, amount_twd, exchange_rate,
-             category, description, payment_method, txn_datetime, location, split_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            trip_id, payer_id, amount_jpy, "JPY", amount_twd, JPY_TO_TWD,
-            category, desc, payment, txn_datetime.strftime("%Y-%m-%d %H:%M:%S"),
-            location, split_type
-        ))
-        txn_id = cursor.lastrowid
-        txn_count += 1
-
-        # --- 建立分帳明細 ---
-        if split_type == "equal":
-            # 均分 4 人
-            share_jpy = round(amount_jpy / 4, 2)
-            share_twd = round(share_jpy * JPY_TO_TWD)
-            for uid in user_ids:
-                cursor.execute("""
-                    INSERT INTO split_details (txn_id, user_id, share_amount, share_twd, share_ratio, is_settled)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (txn_id, uid, share_jpy, share_twd, 0.25, 1))
-                split_count += 1
-
-        elif split_type == "custom" and i in CUSTOM_SPLITS:
-            # 自訂金額分帳
-            splits = CUSTOM_SPLITS[i]
-            for uid_idx, share_jpy in splits.items():
-                share_twd = round(share_jpy * JPY_TO_TWD)
-                ratio = round(share_jpy / amount_jpy, 4)
-                cursor.execute("""
-                    INSERT INTO split_details (txn_id, user_id, share_amount, share_twd, share_ratio, is_settled)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (txn_id, user_ids[uid_idx], share_jpy, share_twd, ratio, 1))
-                split_count += 1
-
-    print(f" {txn_count} 筆交易, {split_count} 筆分帳明細")
-
-    # --- 5. 計算最終結算 ---
-    print("計算最終結算...")
-    settlements = calculate_settlements(cursor, trip_id, user_ids)
-    for s in settlements:
-        cursor.execute("""
-            INSERT INTO settlements
-            (trip_id, from_user, to_user, amount, currency_code, amount_twd, exchange_rate, status, settled_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            trip_id, s["from"], s["to"], s["amount_jpy"], "JPY",
-            s["amount_twd"], JPY_TO_TWD, "completed",
-            "2025-03-20 12:00:00"
-        ))
-    print(f"   {len(settlements)} 筆結算紀錄")
-
-    conn.commit()
-    conn.close()
-
-    # 寫入信用卡種子資料
-    from src.card_recommend import seed_cards
-    seed_cards(DB_PATH)
-
-    print(f"\n種子資料生成完成！")
-
-
-def calculate_settlements(cursor, trip_id, user_ids):
-    """
-    計算每人淨餘額，並用貪心演算法最小化轉帳次數
-    """
+def calculate_settlements(cursor, trip_id, user_ids, rate):
     balances = {}
-
     for uid in user_ids:
-        # 這個人總共付了多少
         cursor.execute(
             "SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE trip_id=? AND paid_by=?",
             (trip_id, uid)
         )
-        total_paid = cursor.fetchone()[0]
-
-        # 這個人總共該分攤多少
+        paid = cursor.fetchone()[0]
         cursor.execute("""
             SELECT COALESCE(SUM(sd.share_amount), 0)
-            FROM split_details sd
-            JOIN transactions t ON sd.txn_id = t.txn_id
+            FROM split_details sd JOIN transactions t ON sd.txn_id = t.txn_id
             WHERE t.trip_id=? AND sd.user_id=?
         """, (trip_id, uid))
-        total_owed = cursor.fetchone()[0]
+        owed = cursor.fetchone()[0]
+        balances[uid] = paid - owed
 
-        balances[uid] = total_paid - total_owed
-
-    # 取得使用者名稱（用於 print）
-    names = {}
-    for uid in user_ids:
-        cursor.execute("SELECT display_name FROM users WHERE user_id=?", (uid,))
-        names[uid] = cursor.fetchone()[0]
-
-    # 印出淨餘額
-    print("   --- 淨餘額（正=被欠, 負=欠人）---")
-    for uid, balance in balances.items():
-        twd = round(balance * JPY_TO_TWD)
-        symbol = "被欠" if balance > 0 else "欠人"
-        print(f"{names[uid]}: ¥{balance:,.0f} (NT${twd:,}) {symbol}")
-
-    # 貪心演算法：最小化轉帳次數
-    creditors = sorted(
-        [(uid, amt) for uid, amt in balances.items() if amt > 0],
-        key=lambda x: -x[1]
-    )
-    debtors = sorted(
-        [(uid, -amt) for uid, amt in balances.items() if amt < 0],
-        key=lambda x: -x[1]
-    )
+    creditors = sorted([(u, a) for u, a in balances.items() if a > 0], key=lambda x: -x[1])
+    debtors   = sorted([(u, -a) for u, a in balances.items() if a < 0], key=lambda x: -x[1])
 
     transfers = []
-    i, j = 0, 0
+    i = j = 0
     while i < len(creditors) and j < len(debtors):
-        creditor_id, credit = creditors[i]
-        debtor_id, debt = debtors[j]
-        amount = min(credit, debt)
-
-        transfers.append({
-            "from": debtor_id,
-            "to": creditor_id,
-            "amount_jpy": round(amount),
-            "amount_twd": round(amount * JPY_TO_TWD),
-        })
-        print(f"{names[debtor_id]} → {names[creditor_id]}: ¥{amount:,.0f} (NT${round(amount * JPY_TO_TWD):,})")
-
-        creditors[i] = (creditor_id, credit - amount)
-        debtors[j] = (debtor_id, debt - amount)
-
-        if creditors[i][1] < 0.5:
-            i += 1
-        if debtors[j][1] < 0.5:
-            j += 1
-
+        cid, credit = creditors[i]
+        did, debt   = debtors[j]
+        amt = min(credit, debt)
+        transfers.append({"from": did, "to": cid, "amount": round(amt), "amount_twd": round(amt * rate)})
+        creditors[i] = (cid, credit - amt)
+        debtors[j]   = (did, debt - amt)
+        if creditors[i][1] < 0.5: i += 1
+        if debtors[j][1] < 0.5:   j += 1
     return transfers
 
 
-# === 驗證 ===
+# ================================================================
+# 主流程
+# ================================================================
 
-def verify_seed_data():
-    """印出種子資料摘要"""
+def seed_all():
     conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    c = conn.cursor()
 
-    print("\n種子資料驗證")
-    print("=" * 50)
+    print("清除舊資料...")
+    for tbl in ("settlements", "split_details", "transactions", "trip_members", "trips", "wallets", "users"):
+        c.execute(f"DELETE FROM {tbl}")
 
-    cursor.execute("SELECT COUNT(*) FROM users")
-    print(f"使用者: {cursor.fetchone()[0]} 人")
+    # --- 使用者 ---
+    print("建立 8 位使用者...")
+    user_ids = []
+    for u in USERS:
+        c.execute("INSERT INTO users (username, display_name) VALUES (?, ?)",
+                  (u["username"], u["display_name"]))
+        user_ids.append(c.lastrowid)
 
-    cursor.execute("SELECT COUNT(*) FROM trips")
-    print(f"旅行: {cursor.fetchone()[0]} 趟")
+    # --- 錢包 ---
+    for uid in user_ids:
+        for cur, bal in [("TWD", round(random.uniform(5000, 30000), 0)),
+                         ("JPY", round(random.uniform(5000, 50000), 0))]:
+            c.execute("INSERT INTO wallets (user_id, currency_code, balance, locked_balance) VALUES (?, ?, ?, 0)",
+                      (uid, cur, bal))
 
-    cursor.execute("SELECT COUNT(*) FROM transactions")
-    print(f"交易紀錄: {cursor.fetchone()[0]} 筆")
+    # --- 旅行 ---
+    for trip_def, txns, customs in ALL_TRIPS:
+        member_global_ids = [user_ids[i] for i in trip_def["members"]]
+        creator_id = user_ids[trip_def["creator"]]
+        rate = trip_def["rate"]
+        start_dt = datetime.strptime(trip_def["start_date"], "%Y-%m-%d")
 
-    cursor.execute("SELECT COUNT(*) FROM split_details")
-    print(f"分帳明細: {cursor.fetchone()[0]} 筆")
+        c.execute("""INSERT INTO trips (user_id, trip_name, destination, currency_code,
+                     start_date, end_date, total_budget, status)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                  (creator_id, trip_def["trip_name"], trip_def["destination"],
+                   trip_def["currency_code"], trip_def["start_date"],
+                   trip_def["end_date"], trip_def["total_budget"], trip_def["status"]))
+        trip_id = c.lastrowid
+        print(f"  旅行：{trip_def['trip_name']} (id={trip_id}, {len(member_global_ids)} 人)")
 
-    cursor.execute("SELECT COUNT(*) FROM settlements")
-    print(f"結算紀錄: {cursor.fetchone()[0]} 筆")
+        for gid in member_global_ids:
+            c.execute("INSERT OR IGNORE INTO trip_members (trip_id, user_id) VALUES (?, ?)",
+                      (trip_id, gid))
 
-    # 各類別消費統計
-    print("\n各類別消費（日圓）")
-    print("-" * 40)
-    cursor.execute("""
-        SELECT category, COUNT(*) as cnt, SUM(amount) as total_jpy, SUM(amount_twd) as total_twd
-        FROM transactions WHERE trip_id=1
-        GROUP BY category ORDER BY total_jpy DESC
-    """)
-    for row in cursor.fetchall():
-        print(f"  {row[0]}: {row[1]} 筆, ¥{row[2]:,.0f} (NT${row[3]:,})")
+        for i, txn in enumerate(txns):
+            day, hour, minute, payer_local, amount, category, desc, location, split_type = txn
+            payer_id = member_global_ids[payer_local]
+            dt_str   = (start_dt + timedelta(days=day, hours=hour, minutes=minute)).strftime("%Y-%m-%d %H:%M:%S")
+            amount_twd = round(amount * rate)
+            payment    = random.choice(["cash", "credit_card", "credit_card", "mobile_pay"])
 
-    # 各人代墊統計
-    print("\n各人代墊金額")
-    print("-" * 40)
-    cursor.execute("""
-        SELECT u.display_name, COUNT(*) as cnt, SUM(t.amount) as paid_jpy, SUM(t.amount_twd) as paid_twd
-        FROM transactions t JOIN users u ON t.paid_by = u.user_id
-        WHERE t.trip_id=1
-        GROUP BY t.paid_by ORDER BY paid_jpy DESC
-    """)
-    for row in cursor.fetchall():
-        print(f"  {row[0]}: 代墊 {row[1]} 次, ¥{row[2]:,.0f} (NT${row[3]:,})")
+            c.execute("""INSERT INTO transactions
+                         (trip_id, paid_by, amount, currency_code, amount_twd, exchange_rate,
+                          category, description, payment_method, txn_datetime, location, split_type)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                      (trip_id, payer_id, amount, trip_def["currency_code"], amount_twd, rate,
+                       category, desc, payment, dt_str, location, split_type))
+            txn_id = c.lastrowid
 
+            if split_type == "equal":
+                n = len(member_global_ids)
+                share = round(amount / n, 2)
+                share_twd = round(share * rate)
+                ratio = round(1 / n, 4)
+                for gid in member_global_ids:
+                    c.execute("""INSERT INTO split_details
+                                 (txn_id, user_id, share_amount, share_twd, share_ratio, is_settled)
+                                 VALUES (?, ?, ?, ?, ?, 1)""",
+                              (txn_id, gid, share, share_twd, ratio))
+            elif split_type == "custom" and i in customs:
+                for local_idx, share_amt in customs[i].items():
+                    gid = member_global_ids[local_idx]
+                    share_twd = round(share_amt * rate)
+                    ratio = round(share_amt / amount, 4) if amount else 0
+                    c.execute("""INSERT INTO split_details
+                                 (txn_id, user_id, share_amount, share_twd, share_ratio, is_settled)
+                                 VALUES (?, ?, ?, ?, ?, 1)""",
+                              (txn_id, gid, share_amt, share_twd, ratio))
+
+        # 結算（只對已完成的旅行）
+        if trip_def["status"] == "completed":
+            settled_at = (start_dt + timedelta(days=len(set(t[0] for t in txns)) + 1)).strftime("%Y-%m-%d 12:00:00")
+            for s in calculate_settlements(c, trip_id, member_global_ids, rate):
+                c.execute("""INSERT INTO settlements
+                             (trip_id, from_user, to_user, amount, currency_code, amount_twd, exchange_rate, status, settled_at)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?)""",
+                          (trip_id, s["from"], s["to"], s["amount"], trip_def["currency_code"],
+                           s["amount_twd"], rate, settled_at))
+
+    conn.commit()
+    conn.close()
+
+    # 信用卡種子資料
+    try:
+        from src.card_recommend import seed_cards
+        seed_cards(DB_PATH)
+    except Exception:
+        pass
+
+    print("\n種子資料生成完成！")
+    _verify()
+
+
+def _verify():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    print("=" * 40)
+    for tbl, label in [("users", "使用者"), ("trips", "旅行"),
+                        ("transactions", "交易"), ("split_details", "分帳明細"),
+                        ("settlements", "結算")]:
+        c.execute(f"SELECT COUNT(*) FROM {tbl}")
+        print(f"  {label}: {c.fetchone()[0]}")
     conn.close()
 
 
-# === 主程式 ===
-
 if __name__ == "__main__":
-    print("TravelWallet - 種子資料生成")
-    print("=" * 40)
-
-    random.seed(42)   # 固定隨機種子，確保每次結果一致
+    random.seed(42)
     seed_all()
-    verify_seed_data()
