@@ -24,9 +24,9 @@ DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
 # 四個維度的權重（總和 = 1.0）
 SCORE_WEIGHTS = {
-    "budget":   0.35,
-    "anomaly":  0.25,
-    "settle":   0.25,
+    "budget": 0.35,
+    "anomaly": 0.25,
+    "settle": 0.25,
     "category": 0.15,
 }
 
@@ -82,7 +82,7 @@ class CreditScoreEngine:
 
             cursor.execute(
                 "SELECT COALESCE(SUM(amount_twd), 0) FROM transactions WHERE trip_id = ?",
-                (trip_id,)
+                (trip_id,),
             )
             total_spent = cursor.fetchone()[0]
 
@@ -116,8 +116,7 @@ class CreditScoreEngine:
                 return 100
 
             cursor.execute(
-                "SELECT COUNT(*) FROM transactions WHERE trip_id = ? AND is_anomaly = 1",
-                (trip_id,)
+                "SELECT COUNT(*) FROM transactions WHERE trip_id = ? AND is_anomaly = 1", (trip_id,)
             )
             anomaly_count = cursor.fetchone()[0]
 
@@ -151,7 +150,7 @@ class CreditScoreEngine:
 
             cursor.execute(
                 "SELECT COUNT(*) FROM settlements WHERE trip_id = ? AND status = 'completed'",
-                (trip_id,)
+                (trip_id,),
             )
             completed = cursor.fetchone()[0]
 
@@ -164,11 +163,14 @@ class CreditScoreEngine:
         計算邏輯：個人消費類別分佈與全國平均的相似度（1 - 平均絕對差）。
         """
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT category, SUM(amount_twd) FROM transactions
                 WHERE trip_id = ?
                 GROUP BY category
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             rows = cursor.fetchall()
 
         if not rows:
@@ -206,16 +208,16 @@ class CreditScoreEngine:
         if not isinstance(trip_id, int) or trip_id <= 0:
             raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
-        budget_score   = self._score_budget(trip_id)
-        anomaly_score  = self._score_anomaly(trip_id)
-        settle_score   = self._score_settle(trip_id)
+        budget_score = self._score_budget(trip_id)
+        anomaly_score = self._score_anomaly(trip_id)
+        settle_score = self._score_settle(trip_id)
         category_score = self._score_category(trip_id)
 
         overall = round(
-            budget_score   * SCORE_WEIGHTS["budget"]   +
-            anomaly_score  * SCORE_WEIGHTS["anomaly"]  +
-            settle_score   * SCORE_WEIGHTS["settle"]   +
-            category_score * SCORE_WEIGHTS["category"]
+            budget_score * SCORE_WEIGHTS["budget"]
+            + anomaly_score * SCORE_WEIGHTS["anomaly"]
+            + settle_score * SCORE_WEIGHTS["settle"]
+            + category_score * SCORE_WEIGHTS["category"]
         )
 
         if overall >= 90:
@@ -236,9 +238,9 @@ class CreditScoreEngine:
             "grade": grade,
             "label": label,
             "details": {
-                "budget_score":   budget_score,
-                "anomaly_score":  anomaly_score,
-                "settle_score":   settle_score,
+                "budget_score": budget_score,
+                "anomaly_score": anomaly_score,
+                "settle_score": settle_score,
                 "category_score": category_score,
             },
             "weights": SCORE_WEIGHTS,
@@ -250,20 +252,23 @@ class CreditScoreEngine:
     def _save_score(self, result: dict) -> None:
         """儲存評分結果至資料庫"""
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO credit_scores
                 (user_id, trip_id, overall_score, budget_score, anomaly_score,
                  settle_score, category_score)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                result["user_id"],
-                result["trip_id"],
-                result["overall_score"],
-                result["details"]["budget_score"],
-                result["details"]["anomaly_score"],
-                result["details"]["settle_score"],
-                result["details"]["category_score"],
-            ))
+            """,
+                (
+                    result["user_id"],
+                    result["trip_id"],
+                    result["overall_score"],
+                    result["details"]["budget_score"],
+                    result["details"]["anomaly_score"],
+                    result["details"]["settle_score"],
+                    result["details"]["category_score"],
+                ),
+            )
 
     def get_history(self, user_id: int, limit: int = 10) -> list:
         """
@@ -282,7 +287,8 @@ class CreditScoreEngine:
             raise ValueError(f"limit 必須為正整數，收到: {limit!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT cs.score_id, cs.trip_id, t.destination,
                        cs.overall_score, cs.budget_score, cs.anomaly_score,
                        cs.settle_score, cs.category_score, cs.evaluated_at
@@ -291,20 +297,22 @@ class CreditScoreEngine:
                 WHERE cs.user_id = ?
                 ORDER BY cs.evaluated_at DESC
                 LIMIT ?
-            """, (user_id, limit))
+            """,
+                (user_id, limit),
+            )
             rows = cursor.fetchall()
 
         return [
             {
-                "score_id":      r[0],
-                "trip_id":       r[1],
-                "destination":   r[2],
+                "score_id": r[0],
+                "trip_id": r[1],
+                "destination": r[2],
                 "overall_score": r[3],
-                "budget_score":  r[4],
+                "budget_score": r[4],
                 "anomaly_score": r[5],
-                "settle_score":  r[6],
-                "category_score":r[7],
-                "evaluated_at":  r[8],
+                "settle_score": r[6],
+                "category_score": r[7],
+                "evaluated_at": r[8],
             }
             for r in rows
         ]

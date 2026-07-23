@@ -1,6 +1,7 @@
 """
 9_OCR_Receipt.py - 電子收據 OCR 掃描頁面
 """
+
 import streamlit as st
 import os, sys, pandas as pd
 
@@ -26,7 +27,10 @@ with col1:
 
     if st.button("開始掃描", type="primary", disabled=(uploaded is None)):
         import tempfile
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded.name)[1]) as tmp:
+
+        with tempfile.NamedTemporaryFile(
+            delete=False, suffix=os.path.splitext(uploaded.name)[1]
+        ) as tmp:
             tmp.write(uploaded.read())
             tmp_path = tmp.name
 
@@ -47,7 +51,7 @@ with col2:
     if "last_scan" in st.session_state:
         r = st.session_state["last_scan"]
         st.subheader("辨識結果")
-        st.metric("信心指數", f"{r['confidence']*100:.0f}%")
+        st.metric("信心指數", f"{r['confidence'] * 100:.0f}%")
         cols = st.columns(2)
         cols[0].metric("金額", f"{r.get('extracted_amount') or '--'}")
         cols[1].metric("幣別", r.get("extracted_currency") or "--")
@@ -90,16 +94,18 @@ except ValueError as e:
 if receipts:
     rows = []
     for r in receipts:
-        rows.append({
-            "ID": r["receipt_id"],
-            "商家": r.get("extracted_merchant") or "--",
-            "金額": r.get("extracted_amount") or 0,
-            "幣別": r.get("extracted_currency") or "--",
-            "類別": r.get("extracted_category") or "--",
-            "日期": r.get("extracted_date") or "--",
-            "狀態": r.get("status", "--"),
-            "信心": f"{(r.get('confidence') or 0)*100:.0f}%",
-        })
+        rows.append(
+            {
+                "ID": r["receipt_id"],
+                "商家": r.get("extracted_merchant") or "--",
+                "金額": r.get("extracted_amount") or 0,
+                "幣別": r.get("extracted_currency") or "--",
+                "類別": r.get("extracted_category") or "--",
+                "日期": r.get("extracted_date") or "--",
+                "狀態": r.get("status", "--"),
+                "信心": f"{(r.get('confidence') or 0) * 100:.0f}%",
+            }
+        )
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 else:
     st.caption("尚無收據紀錄")

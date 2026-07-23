@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(BASE_DIR, ".env"), override=True)
 
+
 def _resolve_db_path() -> str:
     configured = os.environ.get("DB_PATH", "")
     if configured:
@@ -15,6 +16,7 @@ def _resolve_db_path() -> str:
         except OSError:
             pass
     return os.path.join(BASE_DIR, "database", "travel_wallet.db")
+
 
 DB_PATH = _resolve_db_path()
 LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")

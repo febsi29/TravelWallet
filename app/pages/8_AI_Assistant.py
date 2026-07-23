@@ -2,6 +2,7 @@
 TravelWallet AI Agent - Smart Travel Assistant
 Gemini API as primary, rule-based engine as fallback
 """
+
 import streamlit as st
 import sqlite3
 import os
@@ -97,19 +98,43 @@ DEFAULT_TRAVEL_PROMPT = """你是一個專業旅遊規劃助理，請為使用�
 #  Rule-Based Engine (Fallback)
 # ============================================================
 
+
 def rule_based_response(user_input: str) -> str | None:
     """Keyword-based intent detection and response"""
     text = user_input.lower()
 
     # --- Currency / Exchange Rate ---
-    currency_keywords = ["匯率", "換算", "日圓", "美金", "韓元", "泰銖", "歐元", "英鎊", "換錢", "exchange", "rate"]
+    currency_keywords = [
+        "匯率",
+        "換算",
+        "日圓",
+        "美金",
+        "韓元",
+        "泰銖",
+        "歐元",
+        "英鎊",
+        "換錢",
+        "exchange",
+        "rate",
+    ]
     if any(k in text for k in currency_keywords):
         found_code = None
         name_map = {
-            "日圓": "JPY", "日幣": "JPY", "美金": "USD", "美元": "USD",
-            "韓元": "KRW", "韓幣": "KRW", "泰銖": "THB", "歐元": "EUR",
-            "英鎊": "GBP", "澳幣": "AUD", "港幣": "HKD", "人民幣": "CNY",
-            "新加坡": "SGD", "馬來": "MYR", "越南": "VND",
+            "日圓": "JPY",
+            "日幣": "JPY",
+            "美金": "USD",
+            "美元": "USD",
+            "韓元": "KRW",
+            "韓幣": "KRW",
+            "泰銖": "THB",
+            "歐元": "EUR",
+            "英鎊": "GBP",
+            "澳幣": "AUD",
+            "港幣": "HKD",
+            "人民幣": "CNY",
+            "新加坡": "SGD",
+            "馬來": "MYR",
+            "越南": "VND",
         }
         for name, code in name_map.items():
             if name in text:
@@ -122,7 +147,7 @@ def rule_based_response(user_input: str) -> str | None:
                 info = cm.get_currency_info(found_code)
                 twd_per = round(1 / rate, 2) if rate > 0 else 0
 
-                amounts = re.findall(r'[\d,]+', text.replace(",", ""))
+                amounts = re.findall(r"[\d,]+", text.replace(",", ""))
                 if amounts:
                     amt = float(amounts[0])
                     converted = cm.quick_convert(amt, found_code, "TWD")
@@ -155,8 +180,8 @@ def rule_based_response(user_input: str) -> str | None:
 
     # --- Budget Planning ---
     plan_keywords = ["預算", "規劃", "plan", "budget", "花多少", "要帶多少", "行程", "幾天", "幾人"]
-    days_match = re.search(r'(\d+)\s*[天日]', text)
-    people_match = re.search(r'(\d+)\s*[人個位]', text)
+    days_match = re.search(r"(\d+)\s*[天日]", text)
+    people_match = re.search(r"(\d+)\s*[人個位]", text)
     has_numbers = bool(days_match or people_match)
 
     # 偵測訊息中是否含有支援的目的地
@@ -212,7 +237,9 @@ def rule_based_response(user_input: str) -> str | None:
 
             lines.append(f"\n**需要 {len(transfers)} 筆轉帳完成結算**")
             for t in transfers:
-                lines.append(f"- {t['from_name']} 付給 {t['to_name']}: ¥{t['amount']:,.0f} (NT${t['amount_twd']:,})")
+                lines.append(
+                    f"- {t['from_name']} 付給 {t['to_name']}: ¥{t['amount']:,.0f} (NT${t['amount_twd']:,})"
+                )
 
             return "\n".join(lines)
         except Exception:
@@ -228,10 +255,12 @@ def rule_based_response(user_input: str) -> str | None:
             c = pvn["comparison"]
 
             cats = ana.category_analysis(1)
-            cat_lines = "\n".join([
-                f"- {cat['category']}: NT${cat['total_twd']:,.0f} ({cat['percentage']}%)"
-                for cat in cats[:5]
-            ])
+            cat_lines = "\n".join(
+                [
+                    f"- {cat['category']}: NT${cat['total_twd']:,.0f} ({cat['percentage']}%)"
+                    for cat in cats[:5]
+                ]
+            )
 
             return (
                 f"**消費分析報告**\n\n"
@@ -253,7 +282,9 @@ def rule_based_response(user_input: str) -> str | None:
             if summary["anomaly_count"] > 0:
                 lines = [f"**偵測到 {summary['anomaly_count']} 筆異常消費**\n"]
                 for a in summary["anomalies"]:
-                    lines.append(f"- NT${a['amount_twd']:,.0f} | {a['category']} | {a['description']}")
+                    lines.append(
+                        f"- NT${a['amount_twd']:,.0f} | {a['category']} | {a['description']}"
+                    )
                 return "\n".join(lines)
             else:
                 return "目前沒有異常消費，所有交易均在正常範圍內！"
@@ -284,13 +315,16 @@ def rule_based_response(user_input: str) -> str | None:
 #  Gemini API Call
 # ============================================================
 
+
 def get_context_data() -> str:
     """Gather current data context for Gemini"""
     context_parts = []
 
     try:
         balances = engine.get_net_balances(1)
-        bal_text = ", ".join([f"{info['name']}: ¥{info['balance']:,.0f}" for uid, info in balances.items()])
+        bal_text = ", ".join(
+            [f"{info['name']}: ¥{info['balance']:,.0f}" for uid, info in balances.items()]
+        )
         context_parts.append(f"Split balances: {bal_text}")
     except Exception:
         pass
@@ -342,8 +376,8 @@ You help with: trip budget planning, currency exchange, expense tracking, split 
 Current data context:
 {context}
 
-Supported destinations for budget planning: {', '.join(DESTINATION_FACTORS.keys())}
-Supported currencies: {', '.join(COMMON_CURRENCIES.keys())}
+Supported destinations for budget planning: {", ".join(DESTINATION_FACTORS.keys())}
+Supported currencies: {", ".join(COMMON_CURRENCIES.keys())}
 
 Rules:
 - Reply in Traditional Chinese (繁體中文)
@@ -426,7 +460,9 @@ with qcol1:
         st.session_state.quick_msg = "目前主要貨幣匯率"
 with qcol2:
     if st.button("行程規劃", use_container_width=True):
-        st.session_state.quick_msg = st.session_state.get("custom_travel_prompt", DEFAULT_TRAVEL_PROMPT)
+        st.session_state.quick_msg = st.session_state.get(
+            "custom_travel_prompt", DEFAULT_TRAVEL_PROMPT
+        )
 with qcol3:
     if st.button("分帳結算", use_container_width=True):
         st.session_state.quick_msg = "查看分帳狀況"

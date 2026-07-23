@@ -1,6 +1,7 @@
 """
 10_Wallet.py - 多幣別電子錢包頁面
 """
+
 import streamlit as st
 import os, sys, pandas as pd
 import plotly.express as px
@@ -22,8 +23,9 @@ svc = WalletService(DB_PATH)
 # 總資產
 try:
     total = svc.get_total_balance_twd(user_id)
-    st.metric("總資產（台幣換算）", f"NT${total['total_twd']:,.0f}",
-              help="以最新匯率換算各幣別餘額總和")
+    st.metric(
+        "總資產（台幣換算）", f"NT${total['total_twd']:,.0f}", help="以最新匯率換算各幣別餘額總和"
+    )
 except Exception as e:
     st.error(str(e))
     total = {"total_twd": 0, "wallets": []}
@@ -34,25 +36,35 @@ if wallets:
     st.subheader("各幣別餘額")
     rows = []
     for w in wallets:
-        rows.append({
-            "幣別": w["currency_code"],
-            "餘額": f"{w['balance']:,.4f}",
-            "鎖定中": f"{w['locked_balance']:,.4f}",
-            "可用": f"{w['balance'] - w['locked_balance']:,.4f}",
-        })
+        rows.append(
+            {
+                "幣別": w["currency_code"],
+                "餘額": f"{w['balance']:,.4f}",
+                "鎖定中": f"{w['locked_balance']:,.4f}",
+                "可用": f"{w['balance'] - w['locked_balance']:,.4f}",
+            }
+        )
     df = pd.DataFrame(rows)
     st.dataframe(df, use_container_width=True, hide_index=True)
 
     # 圓餅圖
     if total.get("wallets"):
         twd_list = total["wallets"]
-        pie_data = pd.DataFrame([
-            {"幣別": x["currency_code"], "台幣價值": x["balance_twd"]}
-            for x in twd_list if x["balance_twd"] > 0
-        ])
+        pie_data = pd.DataFrame(
+            [
+                {"幣別": x["currency_code"], "台幣價值": x["balance_twd"]}
+                for x in twd_list
+                if x["balance_twd"] > 0
+            ]
+        )
         if not pie_data.empty:
-            fig = px.pie(pie_data, names="幣別", values="台幣價值",
-                         title="資產分佈", color_discrete_sequence=px.colors.sequential.Blues_r)
+            fig = px.pie(
+                pie_data,
+                names="幣別",
+                values="台幣價值",
+                title="資產分佈",
+                color_discrete_sequence=px.colors.sequential.Blues_r,
+            )
             st.plotly_chart(fig, use_container_width=True)
 else:
     st.caption("尚無錢包，請先存款建立")
@@ -102,7 +114,10 @@ with tab3:
     if st.button("確認兌換", type="primary"):
         try:
             result = svc.transfer(
-                user_id, from_cur, to_cur, tr_amt,
+                user_id,
+                from_cur,
+                to_cur,
+                tr_amt,
                 locked_rate=locked_rate if locked_rate > 0 else None,
             )
             st.success(
@@ -120,14 +135,16 @@ history = svc.get_transaction_history(user_id, limit=20)
 if history:
     rows = []
     for h in history:
-        rows.append({
-            "時間": h.get("created_at", "")[:16],
-            "類型": h["txn_type"],
-            "金額": f"{h['amount']:,.4f}",
-            "幣別": h["currency_code"],
-            "匯率": f"{h.get('exchange_rate') or '--'}",
-            "備註": h.get("note") or "",
-        })
+        rows.append(
+            {
+                "時間": h.get("created_at", "")[:16],
+                "類型": h["txn_type"],
+                "金額": f"{h['amount']:,.4f}",
+                "幣別": h["currency_code"],
+                "匯率": f"{h.get('exchange_rate') or '--'}",
+                "備註": h.get("note") or "",
+            }
+        )
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 else:
     st.caption("尚無交易紀錄")

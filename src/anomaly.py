@@ -25,7 +25,6 @@ DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
 
 class AnomalyDetector:
-
     def __init__(self, db_path=None):
         self.db_path = db_path or DB_PATH
 
@@ -46,15 +45,27 @@ class AnomalyDetector:
             raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT txn_id, amount, amount_twd, currency_code, category,
                        txn_datetime, location, payment_method, description
                 FROM transactions
                 WHERE trip_id = ?
                 ORDER BY txn_datetime
-            """, (trip_id,))
-            columns = ["txn_id", "amount", "amount_twd", "currency_code", "category",
-                       "txn_datetime", "location", "payment_method", "description"]
+            """,
+                (trip_id,),
+            )
+            columns = [
+                "txn_id",
+                "amount",
+                "amount_twd",
+                "currency_code",
+                "category",
+                "txn_datetime",
+                "location",
+                "payment_method",
+                "description",
+            ]
             return [dict(zip(columns, r)) for r in cursor.fetchall()]
 
     # ============================================================
@@ -150,7 +161,13 @@ class AnomalyDetector:
         for t in txns:
             amt = t["amount_twd"]
             t["is_anomaly_iqr"] = amt < lower or amt > upper
-            t["iqr_bounds"] = {"lower": round(lower), "upper": round(upper), "q1": q1, "q3": q3, "iqr": iqr}
+            t["iqr_bounds"] = {
+                "lower": round(lower),
+                "upper": round(upper),
+                "q1": q1,
+                "q3": q3,
+                "iqr": iqr,
+            }
 
             if amt > upper:
                 t["iqr_reason"] = f"NT${amt:,.0f} exceeds upper bound NT${upper:,.0f}"
@@ -200,12 +217,18 @@ class AnomalyDetector:
 
         features = []
         for t in txns:
-            hour = int(t["txn_datetime"].split(" ")[1].split(":")[0]) if " " in t["txn_datetime"] else 12
-            features.append([
-                t["amount_twd"],
-                hour,
-                cat_map[t["category"]],
-            ])
+            hour = (
+                int(t["txn_datetime"].split(" ")[1].split(":")[0])
+                if " " in t["txn_datetime"]
+                else 12
+            )
+            features.append(
+                [
+                    t["amount_twd"],
+                    hour,
+                    cat_map[t["category"]],
+                ]
+            )
 
         X = np.array(features)
 
@@ -252,7 +275,9 @@ class AnomalyDetector:
         """
         zscore_results = {t["txn_id"]: t for t in self.detect_zscore(trip_id, zscore_threshold)}
         iqr_results = {t["txn_id"]: t for t in self.detect_iqr(trip_id, iqr_multiplier)}
-        if_results = {t["txn_id"]: t for t in self.detect_isolation_forest(trip_id, if_contamination)}
+        if_results = {
+            t["txn_id"]: t for t in self.detect_isolation_forest(trip_id, if_contamination)
+        }
 
         combined = []
         all_ids = set(zscore_results.keys()) | set(iqr_results.keys()) | set(if_results.keys())
@@ -264,11 +289,13 @@ class AnomalyDetector:
 
             base = z or iq or iso
 
-            flags = sum([
-                z.get("is_anomaly_zscore", False),
-                iq.get("is_anomaly_iqr", False),
-                iso.get("is_anomaly_if", False),
-            ])
+            flags = sum(
+                [
+                    z.get("is_anomaly_zscore", False),
+                    iq.get("is_anomaly_iqr", False),
+                    iso.get("is_anomaly_if", False),
+                ]
+            )
 
             entry = {
                 "txn_id": txn_id,
@@ -295,11 +322,14 @@ class AnomalyDetector:
     def _update_anomaly_flags(self, results: list) -> None:
         with self._db() as (conn, cursor):
             for r in results:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     UPDATE transactions
                     SET is_anomaly = ?, anomaly_score = ?
                     WHERE txn_id = ?
-                """, (1 if r["is_anomaly"] else 0, r["if_score"], r["txn_id"]))
+                """,
+                    (1 if r["is_anomaly"] else 0, r["if_score"], r["txn_id"]),
+                )
 
     # ============================================================
     #  Summary
@@ -310,24 +340,36 @@ class AnomalyDetector:
             raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*) FROM transactions
                 WHERE trip_id = ? AND is_anomaly = 1
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             anomaly_count = cursor.fetchone()[0]
 
             cursor.execute("SELECT COUNT(*) FROM transactions WHERE trip_id = ?", (trip_id,))
             total_count = cursor.fetchone()[0]
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT txn_id, amount_twd, category, description, location, anomaly_score
                 FROM transactions
                 WHERE trip_id = ? AND is_anomaly = 1
                 ORDER BY amount_twd DESC
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             anomalies = [
-                {"txn_id": r[0], "amount_twd": r[1], "category": r[2],
-                 "description": r[3], "location": r[4], "score": r[5]}
+                {
+                    "txn_id": r[0],
+                    "amount_twd": r[1],
+                    "category": r[2],
+                    "description": r[3],
+                    "location": r[4],
+                    "score": r[5],
+                }
                 for r in cursor.fetchall()
             ]
 

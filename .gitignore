@@ -28,6 +28,23 @@ Thumbs.db
 
 # Environment Variables
 .env
+.env.*
+!.env.example
+
+# Local AI assistant configuration
+.claude/
+.codex/
+.agents/
+CLAUDE*.md
+CODEX*.md
+AGENTS.md
+
+# Test and type-check caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
 
 # Large data files (keep .gitkeep)
 data/raw/*.csv

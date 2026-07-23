@@ -78,11 +78,14 @@ class RateAlertService:
         target_currency = target_currency.upper()
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO rate_alerts
                 (user_id, base_currency, target_currency, target_rate, direction, note)
                 VALUES (?, 'TWD', ?, ?, ?, ?)
-            """, (user_id, target_currency, float(target_rate), direction, note))
+            """,
+                (user_id, target_currency, float(target_rate), direction, note),
+            )
             alert_id = cursor.lastrowid
 
         return self._get_alert_by_id(alert_id)
@@ -90,12 +93,15 @@ class RateAlertService:
     def _get_alert_by_id(self, alert_id: int) -> dict:
         """取得單筆提醒資料"""
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT alert_id, user_id, base_currency, target_currency,
                        target_rate, direction, current_rate, is_triggered,
                        triggered_at, is_active, note, created_at
                 FROM rate_alerts WHERE alert_id = ?
-            """, (alert_id,))
+            """,
+                (alert_id,),
+            )
             row = cursor.fetchone()
 
         if not row:
@@ -104,9 +110,18 @@ class RateAlertService:
 
     def _row_to_dict(self, row: tuple) -> dict:
         keys = [
-            "alert_id", "user_id", "base_currency", "target_currency",
-            "target_rate", "direction", "current_rate", "is_triggered",
-            "triggered_at", "is_active", "note", "created_at",
+            "alert_id",
+            "user_id",
+            "base_currency",
+            "target_currency",
+            "target_rate",
+            "direction",
+            "current_rate",
+            "is_triggered",
+            "triggered_at",
+            "is_active",
+            "note",
+            "created_at",
         ]
         return dict(zip(keys, row))
 
@@ -162,14 +177,17 @@ class RateAlertService:
             raise ValueError(f"user_id 必須為正整數，收到: {user_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT alert_id, user_id, base_currency, target_currency,
                        target_rate, direction, current_rate, is_triggered,
                        triggered_at, is_active, note, created_at
                 FROM rate_alerts
                 WHERE user_id = ? AND is_triggered = 1
                 ORDER BY triggered_at DESC
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             rows = cursor.fetchall()
 
         return [self._row_to_dict(r) for r in rows]
@@ -200,6 +218,7 @@ class RateAlertService:
         # 取得各幣別目前匯率
         try:
             from src.currency import CurrencyManager
+
             cm = CurrencyManager(self.db_path)
         except ImportError:
             return []
@@ -220,13 +239,16 @@ class RateAlertService:
 
             if condition_met:
                 with self._db() as (conn, cursor):
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         UPDATE rate_alerts
                         SET is_triggered = 1,
                             triggered_at = datetime('now'),
                             current_rate = ?
                         WHERE alert_id = ?
-                    """, (current_rate, alert["alert_id"]))
+                    """,
+                        (current_rate, alert["alert_id"]),
+                    )
                 alert["is_triggered"] = 1
                 alert["current_rate"] = current_rate
                 triggered.append(alert)
@@ -248,7 +270,4 @@ class RateAlertService:
             raise ValueError(f"alert_id 必須為正整數，收到: {alert_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute(
-                "UPDATE rate_alerts SET is_active = 0 WHERE alert_id = ?",
-                (alert_id,)
-            )
+            cursor.execute("UPDATE rate_alerts SET is_active = 0 WHERE alert_id = ?", (alert_id,))

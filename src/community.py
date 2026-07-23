@@ -66,27 +66,27 @@ class CommunityService:
 
         with self._db() as (conn, cursor):
             # 取得旅行基本資訊
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT destination, start_date, end_date,
                        CAST(julianday(end_date) - julianday(start_date) + 1 AS INTEGER)
                 FROM trips WHERE trip_id = ?
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             row = cursor.fetchone()
             if not row:
                 raise ValueError(f"找不到 trip_id={trip_id}")
             destination, start_date, end_date, trip_days = row
 
             # 旅行成員數
-            cursor.execute(
-                "SELECT COUNT(*) FROM trip_members WHERE trip_id = ?",
-                (trip_id,)
-            )
+            cursor.execute("SELECT COUNT(*) FROM trip_members WHERE trip_id = ?", (trip_id,))
             num_travelers = cursor.fetchone()[0] or 1
 
             # 總消費（台幣）
             cursor.execute(
                 "SELECT COALESCE(SUM(amount_twd), 0) FROM transactions WHERE trip_id = ?",
-                (trip_id,)
+                (trip_id,),
             )
             total_spent_twd = cursor.fetchone()[0]
 
@@ -98,27 +98,37 @@ class CommunityService:
             )
 
             # 消費類別分佈
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT category, SUM(amount_twd)
                 FROM transactions WHERE trip_id = ?
                 GROUP BY category
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             cat_rows = cursor.fetchall()
             total = sum(r[1] for r in cat_rows) or 1
             category_breakdown = {r[0]: round(r[1] / total, 4) for r in cat_rows}
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO community_stats
                 (destination, trip_days, num_travelers, total_spent_twd,
                  per_person_daily, category_breakdown, user_id, trip_id, is_anonymous)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-            """, (
-                destination, int(trip_days), num_travelers,
-                float(total_spent_twd), round(float(per_person_daily), 2),
-                json.dumps(category_breakdown, ensure_ascii=False),
-                user_id, trip_id,
-            ))
+            """,
+                (
+                    destination,
+                    int(trip_days),
+                    num_travelers,
+                    float(total_spent_twd),
+                    round(float(per_person_daily), 2),
+                    json.dumps(category_breakdown, ensure_ascii=False),
+                    user_id,
+                    trip_id,
+                ),
+            )
 
         return {
             "destination": destination,
@@ -147,12 +157,15 @@ class CommunityService:
             raise ValueError(f"destination 必須為非空字串，收到: {destination!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*), AVG(per_person_daily), MIN(per_person_daily),
                        MAX(per_person_daily), AVG(trip_days)
                 FROM community_stats
                 WHERE destination = ?
-            """, (destination,))
+            """,
+                (destination,),
+            )
             row = cursor.fetchone()
 
         count = row[0] or 0
@@ -198,26 +211,31 @@ class CommunityService:
         order = "ASC" if metric == "frugal" else "DESC"
 
         with self._db() as (conn, cursor):
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 SELECT stat_id, destination, trip_days, num_travelers,
                        per_person_daily, shared_at
                 FROM community_stats
                 ORDER BY per_person_daily {order}
                 LIMIT ?
-            """, (limit,))
+            """,
+                (limit,),
+            )
             rows = cursor.fetchall()
 
         result = []
         for rank, row in enumerate(rows, 1):
-            result.append({
-                "rank": rank,
-                "stat_id": row[0],
-                "destination": row[1],
-                "trip_days": row[2],
-                "num_travelers": row[3],
-                "per_person_daily": round(row[4], 2),
-                "shared_at": row[5],
-            })
+            result.append(
+                {
+                    "rank": rank,
+                    "stat_id": row[0],
+                    "destination": row[1],
+                    "trip_days": row[2],
+                    "num_travelers": row[3],
+                    "per_person_daily": round(row[4], 2),
+                    "shared_at": row[5],
+                }
+            )
 
         return result
 
@@ -244,9 +262,7 @@ class CommunityService:
     #  類似旅行查詢
     # ============================================================
 
-    def get_similar_trips(
-        self, destination: str, days: int, num_travelers: int
-    ) -> dict:
+    def get_similar_trips(self, destination: str, days: int, num_travelers: int) -> dict:
         """
         查詢類似旅行（同目的地、相近天數）的平均消費
 
@@ -266,12 +282,15 @@ class CommunityService:
             raise ValueError(f"num_travelers 必須為正整數，收到: {num_travelers!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*), AVG(per_person_daily)
                 FROM community_stats
                 WHERE destination = ?
                   AND trip_days BETWEEN ? AND ?
-            """, (destination, max(1, days - 1), days + 1))
+            """,
+                (destination, max(1, days - 1), days + 1),
+            )
             row = cursor.fetchone()
 
         count = row[0] or 0
@@ -304,11 +323,14 @@ class CommunityService:
             raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT destination, per_person_daily
                 FROM community_stats
                 WHERE user_id = ? AND trip_id = ?
-            """, (user_id, trip_id))
+            """,
+                (user_id, trip_id),
+            )
             row = cursor.fetchone()
 
         if not row:
@@ -318,15 +340,17 @@ class CommunityService:
 
         with self._db() as (conn, cursor):
             cursor.execute(
-                "SELECT COUNT(*) FROM community_stats WHERE destination = ?",
-                (destination,)
+                "SELECT COUNT(*) FROM community_stats WHERE destination = ?", (destination,)
             )
             total = cursor.fetchone()[0] or 0
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*) FROM community_stats
                 WHERE destination = ? AND per_person_daily < ?
-            """, (destination, per_person_daily))
+            """,
+                (destination, per_person_daily),
+            )
             cheaper_count = cursor.fetchone()[0] or 0
 
         rank = total - cheaper_count

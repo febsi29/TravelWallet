@@ -65,15 +65,21 @@ class WalletService:
         currency_code = currency_code.upper()
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR IGNORE INTO wallets (user_id, currency_code, balance, locked_balance)
                 VALUES (?, ?, 0, 0)
-            """, (user_id, currency_code))
+            """,
+                (user_id, currency_code),
+            )
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT wallet_id, user_id, currency_code, balance, locked_balance, created_at
                 FROM wallets WHERE user_id = ? AND currency_code = ?
-            """, (user_id, currency_code))
+            """,
+                (user_id, currency_code),
+            )
             row = cursor.fetchone()
 
         return self._wallet_row_to_dict(row)
@@ -92,11 +98,14 @@ class WalletService:
             raise ValueError(f"user_id 必須為正整數，收到: {user_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT wallet_id, user_id, currency_code, balance, locked_balance, created_at
                 FROM wallets WHERE user_id = ?
                 ORDER BY currency_code
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             rows = cursor.fetchall()
 
         return [self._wallet_row_to_dict(r) for r in rows]
@@ -118,6 +127,7 @@ class WalletService:
 
         try:
             from src.currency import CurrencyManager, FALLBACK_RATES
+
             cm = CurrencyManager(self.db_path)
         except ImportError:
             cm = None
@@ -141,11 +151,13 @@ class WalletService:
                 balance_twd = 0.0
 
             total_twd += balance_twd
-            breakdown.append({
-                "currency": currency,
-                "balance": balance,
-                "balance_twd": round(balance_twd, 2),
-            })
+            breakdown.append(
+                {
+                    "currency": currency,
+                    "balance": balance,
+                    "balance_twd": round(balance_twd, 2),
+                }
+            )
 
         return {"total_twd": round(total_twd, 2), "breakdown": breakdown}
 
@@ -181,13 +193,16 @@ class WalletService:
         with self._db() as (conn, cursor):
             cursor.execute(
                 "UPDATE wallets SET balance = balance + ? WHERE wallet_id = ?",
-                (float(amount), wallet_id)
+                (float(amount), wallet_id),
             )
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO wallet_transactions
                 (wallet_id, txn_type, amount, currency_code, note)
                 VALUES (?, 'deposit', ?, ?, ?)
-            """, (wallet_id, float(amount), currency_code.upper(), note))
+            """,
+                (wallet_id, float(amount), currency_code.upper(), note),
+            )
 
         return self.get_or_create_wallet(user_id, currency_code)
 
@@ -224,13 +239,16 @@ class WalletService:
         with self._db() as (conn, cursor):
             cursor.execute(
                 "UPDATE wallets SET balance = balance - ? WHERE wallet_id = ?",
-                (float(amount), wallet_id)
+                (float(amount), wallet_id),
             )
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO wallet_transactions
                 (wallet_id, txn_type, amount, currency_code, note)
                 VALUES (?, 'withdraw', ?, ?, ?)
-            """, (wallet_id, float(amount), currency_code.upper(), note))
+            """,
+                (wallet_id, float(amount), currency_code.upper(), note),
+            )
 
         return self.get_or_create_wallet(user_id, currency_code)
 
@@ -288,6 +306,7 @@ class WalletService:
         else:
             try:
                 from src.currency import CurrencyManager
+
                 cm = CurrencyManager(self.db_path)
                 result = cm.convert(amount, from_currency, to_currency)
                 converted_amount = result["amount"]
@@ -303,25 +322,31 @@ class WalletService:
             # 扣除來源錢包
             cursor.execute(
                 "UPDATE wallets SET balance = balance - ? WHERE wallet_id = ?",
-                (float(amount), from_wallet_id)
+                (float(amount), from_wallet_id),
             )
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO wallet_transactions
                 (wallet_id, txn_type, amount, currency_code, exchange_rate, locked_rate)
                 VALUES (?, 'transfer_out', ?, ?, ?, ?)
-            """, (from_wallet_id, float(amount), from_currency, rate, locked_rate))
+            """,
+                (from_wallet_id, float(amount), from_currency, rate, locked_rate),
+            )
             out_txn_id = cursor.lastrowid
 
             # 增加目標錢包
             cursor.execute(
                 "UPDATE wallets SET balance = balance + ? WHERE wallet_id = ?",
-                (float(converted_amount), to_wallet_id)
+                (float(converted_amount), to_wallet_id),
             )
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO wallet_transactions
                 (wallet_id, txn_type, amount, currency_code, exchange_rate, locked_rate, related_wtxn_id)
                 VALUES (?, 'transfer_in', ?, ?, ?, ?, ?)
-            """, (to_wallet_id, float(converted_amount), to_currency, rate, locked_rate, out_txn_id))
+            """,
+                (to_wallet_id, float(converted_amount), to_currency, rate, locked_rate, out_txn_id),
+            )
 
         return {
             "from_wallet": self.get_or_create_wallet(user_id, from_currency),
@@ -351,7 +376,8 @@ class WalletService:
             raise ValueError(f"limit 必須為正整數，收到: {limit!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT wt.wtxn_id, w.currency_code, wt.txn_type,
                        wt.amount, wt.exchange_rate, wt.locked_rate,
                        wt.note, wt.created_at
@@ -360,9 +386,19 @@ class WalletService:
                 WHERE w.user_id = ?
                 ORDER BY wt.created_at DESC
                 LIMIT ?
-            """, (user_id, limit))
+            """,
+                (user_id, limit),
+            )
             rows = cursor.fetchall()
 
-        keys = ["wtxn_id", "currency_code", "txn_type", "amount",
-                "exchange_rate", "locked_rate", "note", "created_at"]
+        keys = [
+            "wtxn_id",
+            "currency_code",
+            "txn_type",
+            "amount",
+            "exchange_rate",
+            "locked_rate",
+            "note",
+            "created_at",
+        ]
         return [dict(zip(keys, r)) for r in rows]

@@ -4,6 +4,7 @@
 功能分頁：
   財務顧問 | 異常說明 | 信用卡推薦 | 預算規劃
 """
+
 import streamlit as st
 import os
 import sys
@@ -22,6 +23,7 @@ DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 #  初始化
 # ============================================================
 
+
 @st.cache_resource
 def get_agent():
     return AIAgentService(DB_PATH)
@@ -39,15 +41,11 @@ with status_col:
         st.success("Claude API 已連線 — 完整 AI 功能已啟用")
     else:
         st.warning(
-            "未設定 ANTHROPIC_API_KEY — 使用規則型降級模式。"
-            "請在環境變數中設定金鑰以啟用完整功能。"
+            "未設定 ANTHROPIC_API_KEY — 使用規則型降級模式。請在環境變數中設定金鑰以啟用完整功能。"
         )
 with model_col:
     if agent.is_available:
-        st.caption(
-            f"一般：{MODEL_HAIKU.split('-')[1]}\n"
-            f"複雜：{MODEL_SONNET.split('-')[1]}"
-        )
+        st.caption(f"一般：{MODEL_HAIKU.split('-')[1]}\n複雜：{MODEL_SONNET.split('-')[1]}")
 
 st.markdown("---")
 
@@ -55,12 +53,14 @@ st.markdown("---")
 #  四個功能分頁
 # ============================================================
 
-tab1, tab2, tab3, tab4 = st.tabs([
-    "智慧財務顧問",
-    "異常交易說明",
-    "信用卡推薦對話",
-    "預算規劃 Agent",
-])
+tab1, tab2, tab3, tab4 = st.tabs(
+    [
+        "智慧財務顧問",
+        "異常交易說明",
+        "信用卡推薦對話",
+        "預算規劃 Agent",
+    ]
+)
 
 # ────────────────────────────────────────────────────────────
 #  Tab 1：智慧財務顧問
@@ -139,6 +139,7 @@ with tab2:
         with st.spinner("偵測異常中..."):
             try:
                 from src.anomaly import AnomalyDetector
+
                 detector = AnomalyDetector(DB_PATH)
                 anomalies = detector.detect_all(int(trip_id_anom))
                 flagged = [a for a in anomalies if a.get("is_anomaly")]
@@ -161,8 +162,12 @@ with tab2:
                             with d_col:
                                 st.markdown("**偵測細節**")
                                 st.write(f"Z-Score：{item.get('zscore', 0):+.2f}")
-                                st.write(f"IQR 異常：{'是' if item.get('is_anomaly_iqr') else '否'}")
-                                st.write(f"Isolation Forest：{'是' if item.get('is_anomaly_if') else '否'}")
+                                st.write(
+                                    f"IQR 異常：{'是' if item.get('is_anomaly_iqr') else '否'}"
+                                )
+                                st.write(
+                                    f"Isolation Forest：{'是' if item.get('is_anomaly_if') else '否'}"
+                                )
                                 st.write(f"描述：{item.get('description', '--')}")
                             with e_col:
                                 st.markdown("**AI 說明**")
@@ -187,21 +192,22 @@ with tab3:
             st.rerun()
     with load_col:
         card_trip = st.number_input(
-            "載入旅行消費輔助推薦（0=略過）",
-            min_value=0, step=1, value=0, key="card_trip_id"
+            "載入旅行消費輔助推薦（0=略過）", min_value=0, step=1, value=0, key="card_trip_id"
         )
 
     # 初始化對話
     if "card_history" not in st.session_state:
-        st.session_state["card_history"] = [{
-            "role": "assistant",
-            "content": (
-                "您好！我是信用卡推薦顧問。\n\n"
-                "讓我透過幾個問題了解您的旅遊消費習慣，"
-                "為您推薦最划算的信用卡。\n\n"
-                "請問您最常前往哪些旅遊地區？（例如：日本、東南亞、歐美等）"
-            ),
-        }]
+        st.session_state["card_history"] = [
+            {
+                "role": "assistant",
+                "content": (
+                    "您好！我是信用卡推薦顧問。\n\n"
+                    "讓我透過幾個問題了解您的旅遊消費習慣，"
+                    "為您推薦最划算的信用卡。\n\n"
+                    "請問您最常前往哪些旅遊地區？（例如：日本、東南亞、歐美等）"
+                ),
+            }
+        ]
 
     for msg in st.session_state["card_history"]:
         with st.chat_message(msg["role"]):
@@ -216,11 +222,13 @@ with tab3:
         if card_trip > 0:
             try:
                 import sqlite3
+
                 conn = sqlite3.connect(DB_PATH)
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT category, SUM(amount_twd) FROM transactions "
-                    "WHERE trip_id=? GROUP BY category", (int(card_trip),)
+                    "WHERE trip_id=? GROUP BY category",
+                    (int(card_trip),),
                 )
                 rows = cursor.fetchall()
                 conn.close()
@@ -253,9 +261,7 @@ with tab4:
 
     with param_col:
         st.markdown("**旅行設定**")
-        destination = st.selectbox(
-            "目的地", options=list(DESTINATION_FACTORS.keys()), index=0
-        )
+        destination = st.selectbox("目的地", options=list(DESTINATION_FACTORS.keys()), index=0)
         days = st.slider("天數", min_value=1, max_value=30, value=5)
         num_travelers = st.slider("人數", min_value=1, max_value=10, value=2)
         travel_style = st.radio(
@@ -307,10 +313,9 @@ with tab4:
             std_breakdown = tiers.get("standard", {}).get("breakdown", {})
             if std_breakdown:
                 st.markdown("**標準版類別分配（每人）**")
-                bd_df = pd.DataFrame([
-                    {"類別": k, "金額": f"NT${v:,}"}
-                    for k, v in std_breakdown.items()
-                ])
+                bd_df = pd.DataFrame(
+                    [{"類別": k, "金額": f"NT${v:,}"} for k, v in std_breakdown.items()]
+                )
                 st.dataframe(bd_df, use_container_width=True, hide_index=True)
 
             # AI 個人化分析
@@ -332,9 +337,7 @@ with tab4:
             st.markdown(msg["content"])
 
     if budget_prompt := st.chat_input("詢問或調整預算...", key="budget_input"):
-        st.session_state["budget_chat_history"].append(
-            {"role": "user", "content": budget_prompt}
-        )
+        st.session_state["budget_chat_history"].append({"role": "user", "content": budget_prompt})
         with st.chat_message("user"):
             st.markdown(budget_prompt)
 
@@ -355,6 +358,4 @@ with tab4:
                 src = "Claude Haiku" if agent.is_available else "規則引擎"
                 st.caption(f"Powered by {src}")
 
-        st.session_state["budget_chat_history"].append(
-            {"role": "assistant", "content": reply}
-        )
+        st.session_state["budget_chat_history"].append({"role": "assistant", "content": reply})

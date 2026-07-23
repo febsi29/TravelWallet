@@ -1,6 +1,7 @@
 """
 13_Payment.py - 分帳付款整合頁面
 """
+
 import streamlit as st
 import os, sys, pandas as pd
 
@@ -31,15 +32,17 @@ try:
     if pending:
         rows = []
         for p in pending:
-            rows.append({
-                "結算 ID": p["settlement_id"],
-                "付給": p.get("to_name", "--"),
-                "金額": f"{p['amount']:,.2f}",
-                "幣別": p["currency_code"],
-                "狀態": p["status"],
-                "付款平台": PROVIDER_LABELS.get(p.get("provider", ""), p.get("provider", "--")),
-                "連結": p.get("payment_url", "--"),
-            })
+            rows.append(
+                {
+                    "結算 ID": p["settlement_id"],
+                    "付給": p.get("to_name", "--"),
+                    "金額": f"{p['amount']:,.2f}",
+                    "幣別": p["currency_code"],
+                    "狀態": p["status"],
+                    "付款平台": PROVIDER_LABELS.get(p.get("provider", ""), p.get("provider", "--")),
+                    "連結": p.get("payment_url", "--"),
+                }
+            )
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
     else:
         st.caption("目前沒有待付款項目")
@@ -54,8 +57,9 @@ col1, col2, col3 = st.columns(3)
 with col1:
     settlement_id = st.number_input("結算 ID", min_value=1, step=1, value=1)
 with col2:
-    provider = st.selectbox("付款方式", list(PROVIDER_LABELS.keys()),
-                            format_func=lambda x: PROVIDER_LABELS[x])
+    provider = st.selectbox(
+        "付款方式", list(PROVIDER_LABELS.keys()), format_func=lambda x: PROVIDER_LABELS[x]
+    )
 with col3:
     st.markdown("<br>", unsafe_allow_html=True)
     gen_btn = st.button("產生連結", type="primary", use_container_width=True)
@@ -79,7 +83,11 @@ if "generated_link" in st.session_state:
 
     if link.get("qr_code_data"):
         st.caption("QR Code 資料（可複製後轉換）")
-        st.code(link["qr_code_data"][:100] + "..." if len(link.get("qr_code_data", "")) > 100 else link["qr_code_data"])
+        st.code(
+            link["qr_code_data"][:100] + "..."
+            if len(link.get("qr_code_data", "")) > 100
+            else link["qr_code_data"]
+        )
 
     sim_col, _ = st.columns([1, 2])
     with sim_col:
@@ -102,14 +110,18 @@ if st.button("查詢"):
         if records:
             rows = []
             for r in records:
-                rows.append({
-                    "連結 ID": r["link_id"],
-                    "付款方式": PROVIDER_LABELS.get(r.get("provider", ""), r.get("provider", "--")),
-                    "狀態": r["status"],
-                    "金額": f"{r['amount']:,.2f} {r['currency_code']}",
-                    "建立時間": r.get("created_at", "")[:16],
-                    "付款時間": r.get("paid_at", "--"),
-                })
+                rows.append(
+                    {
+                        "連結 ID": r["link_id"],
+                        "付款方式": PROVIDER_LABELS.get(
+                            r.get("provider", ""), r.get("provider", "--")
+                        ),
+                        "狀態": r["status"],
+                        "金額": f"{r['amount']:,.2f} {r['currency_code']}",
+                        "建立時間": r.get("created_at", "")[:16],
+                        "付款時間": r.get("paid_at", "--"),
+                    }
+                )
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
         else:
             st.caption("此結算尚無付款紀錄")

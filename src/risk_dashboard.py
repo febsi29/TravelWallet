@@ -24,10 +24,10 @@ DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
 # 各維度風險的加權比例（總和 = 1.0）
 RISK_WEIGHTS = {
-    "fx":      0.25,
-    "budget":  0.30,
+    "fx": 0.25,
+    "budget": 0.30,
     "anomaly": 0.25,
-    "credit":  0.20,
+    "credit": 0.20,
 }
 
 
@@ -99,6 +99,7 @@ class RiskDashboard:
 
         try:
             from src.fx_strategy import FxStrategy
+
             fx = FxStrategy(self.db_path)
             history = fx.get_history(currency, 30)
         except Exception:
@@ -116,7 +117,7 @@ class RiskDashboard:
         rates = [h["rate"] for h in history]
         mean = sum(rates) / len(rates)
         variance = sum((r - mean) ** 2 for r in rates) / len(rates)
-        std_dev = variance ** 0.5
+        std_dev = variance**0.5
         volatility = std_dev / mean if mean > 0 else 0
 
         risk_score = min(100.0, round(volatility * 1000, 2))
@@ -130,7 +131,7 @@ class RiskDashboard:
         return {
             "risk_score": risk_score,
             "level": _risk_level(risk_score),
-            "message": f"{currency} 近 30 日匯率波動率 {volatility*100:.2f}%",
+            "message": f"{currency} 近 30 日匯率波動率 {volatility * 100:.2f}%",
             "volatility": round(volatility * 100, 2),
             "currency": currency,
         }
@@ -153,10 +154,16 @@ class RiskDashboard:
 
         try:
             from src.budget import BudgetManager
+
             bm = BudgetManager(self.db_path)
             health = bm.assess_health(trip_id)
         except Exception:
-            return {"risk_score": 50.0, "level": "中等", "message": "無法評估預算健康", "usage_ratio": 0}
+            return {
+                "risk_score": 50.0,
+                "level": "中等",
+                "message": "無法評估預算健康",
+                "usage_ratio": 0,
+            }
 
         health_score = health.get("score", 50)
         usage_ratio = health.get("usage_ratio", 0)
@@ -186,10 +193,13 @@ class RiskDashboard:
             raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*), COALESCE(SUM(is_anomaly), 0)
                 FROM transactions WHERE trip_id = ?
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             total, anomaly_count = cursor.fetchone()
 
         if total == 0:
@@ -206,7 +216,7 @@ class RiskDashboard:
         return {
             "risk_score": risk_score,
             "level": _risk_level(risk_score),
-            "message": f"共 {total} 筆交易，{int(anomaly_count)} 筆異常（{anomaly_rate*100:.1f}%）",
+            "message": f"共 {total} 筆交易，{int(anomaly_count)} 筆異常（{anomaly_rate * 100:.1f}%）",
             "anomaly_rate": round(anomaly_rate * 100, 2),
         }
 
@@ -231,6 +241,7 @@ class RiskDashboard:
 
         try:
             from src.credit_score import CreditScoreEngine
+
             engine = CreditScoreEngine(self.db_path)
             result = engine.evaluate(user_id, trip_id)
         except Exception:
@@ -275,16 +286,16 @@ class RiskDashboard:
         if not isinstance(trip_id, int) or trip_id <= 0:
             raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
-        fx_result      = self.assess_fx_risk(trip_id)
-        budget_result  = self.assess_budget_risk(trip_id)
+        fx_result = self.assess_fx_risk(trip_id)
+        budget_result = self.assess_budget_risk(trip_id)
         anomaly_result = self.assess_anomaly_risk(trip_id)
-        credit_result  = self.assess_credit_risk(user_id, trip_id)
+        credit_result = self.assess_credit_risk(user_id, trip_id)
 
         overall_risk = round(
-            fx_result["risk_score"]      * RISK_WEIGHTS["fx"]      +
-            budget_result["risk_score"]  * RISK_WEIGHTS["budget"]  +
-            anomaly_result["risk_score"] * RISK_WEIGHTS["anomaly"] +
-            credit_result["risk_score"]  * RISK_WEIGHTS["credit"],
+            fx_result["risk_score"] * RISK_WEIGHTS["fx"]
+            + budget_result["risk_score"] * RISK_WEIGHTS["budget"]
+            + anomaly_result["risk_score"] * RISK_WEIGHTS["anomaly"]
+            + credit_result["risk_score"] * RISK_WEIGHTS["credit"],
             2,
         )
 
@@ -302,10 +313,10 @@ class RiskDashboard:
         assessment = {
             "overall_risk": overall_risk,
             "health_index": health_index,
-            "fx":      fx_result,
-            "budget":  budget_result,
+            "fx": fx_result,
+            "budget": budget_result,
             "anomaly": anomaly_result,
-            "credit":  credit_result,
+            "credit": credit_result,
         }
 
         recommendations = self.generate_recommendations(assessment)
@@ -313,19 +324,24 @@ class RiskDashboard:
 
         # 儲存評估結果
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO risk_assessments
                 (user_id, trip_id, overall_risk, fx_risk, budget_risk,
                  anomaly_risk, credit_risk, health_index)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                user_id, trip_id, overall_risk,
-                fx_result["risk_score"],
-                budget_result["risk_score"],
-                anomaly_result["risk_score"],
-                credit_result["risk_score"],
-                health_index,
-            ))
+            """,
+                (
+                    user_id,
+                    trip_id,
+                    overall_risk,
+                    fx_result["risk_score"],
+                    budget_result["risk_score"],
+                    anomaly_result["risk_score"],
+                    credit_result["risk_score"],
+                    health_index,
+                ),
+            )
 
         return assessment
 
@@ -341,18 +357,22 @@ class RiskDashboard:
         """
         recs = []
 
-        budget_risk  = assessment.get("budget",  {}).get("risk_score", 0)
+        budget_risk = assessment.get("budget", {}).get("risk_score", 0)
         anomaly_risk = assessment.get("anomaly", {}).get("risk_score", 0)
-        fx_risk      = assessment.get("fx",      {}).get("risk_score", 0)
-        credit_risk  = assessment.get("credit",  {}).get("risk_score", 0)
+        fx_risk = assessment.get("fx", {}).get("risk_score", 0)
+        credit_risk = assessment.get("credit", {}).get("risk_score", 0)
 
         if budget_risk > 70:
-            recs.append("預算嚴重超支：建議每日消費控制在預算的 80% 以內，並使用「支出預測」功能追蹤消費軌跡")
+            recs.append(
+                "預算嚴重超支：建議每日消費控制在預算的 80% 以內，並使用「支出預測」功能追蹤消費軌跡"
+            )
         elif budget_risk > 40:
             recs.append("預算偏高：建議減少非必要的購物支出，重新規劃剩餘旅程的每日預算")
 
         if anomaly_risk > 60:
-            recs.append("異常消費偏多：請至「異常偵測」頁面確認可疑交易，並檢查信用卡是否有未授權消費")
+            recs.append(
+                "異常消費偏多：請至「異常偵測」頁面確認可疑交易，並檢查信用卡是否有未授權消費"
+            )
         elif anomaly_risk > 30:
             recs.append("存在部分異常消費：建議定期檢視交易明細，確認所有消費均為本人操作")
 
@@ -392,7 +412,8 @@ class RiskDashboard:
             raise ValueError(f"limit 必須為正整數，收到: {limit!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT ra.assessment_id, ra.trip_id, t.trip_name,
                        ra.overall_risk, ra.fx_risk, ra.budget_risk,
                        ra.anomaly_risk, ra.credit_risk, ra.health_index, ra.assessed_at
@@ -401,10 +422,21 @@ class RiskDashboard:
                 WHERE ra.user_id = ?
                 ORDER BY ra.assessed_at DESC
                 LIMIT ?
-            """, (user_id, limit))
+            """,
+                (user_id, limit),
+            )
             rows = cursor.fetchall()
 
-        keys = ["assessment_id", "trip_id", "trip_name", "overall_risk",
-                "fx_risk", "budget_risk", "anomaly_risk", "credit_risk",
-                "health_index", "assessed_at"]
+        keys = [
+            "assessment_id",
+            "trip_id",
+            "trip_name",
+            "overall_risk",
+            "fx_risk",
+            "budget_risk",
+            "anomaly_risk",
+            "credit_risk",
+            "health_index",
+            "assessed_at",
+        ]
         return [dict(zip(keys, r)) for r in rows]

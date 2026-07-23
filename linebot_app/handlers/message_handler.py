@@ -53,9 +53,7 @@ _HELP_TEXT = (
 )
 
 
-def _lookup_user_id_by_line_id(
-    conn: sqlite3.Connection, line_user_id: str
-) -> Optional[int]:
+def _lookup_user_id_by_line_id(conn: sqlite3.Connection, line_user_id: str) -> Optional[int]:
     """依 line_user_id 查詢 users 資料表，回傳 user_id；找不到則回傳 None。"""
     # 先確認 line_user_id 欄位存在
     cursor = conn.execute("PRAGMA table_info(users)")
@@ -143,7 +141,9 @@ def _cmd_split(conn: sqlite3.Connection, user_id: int) -> str:
     lines = [f"旅行「{trip_name}」分帳狀態：\n"]
     for name, total, settled in splits:
         owed = total - settled
-        lines.append(f"- {name}：應付 NT${total:,.0f}，已結清 NT${settled:,.0f}，未結清 NT${owed:,.0f}")
+        lines.append(
+            f"- {name}：應付 NT${total:,.0f}，已結清 NT${settled:,.0f}，未結清 NT${owed:,.0f}"
+        )
     return "\n".join(lines)
 
 

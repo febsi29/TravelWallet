@@ -18,6 +18,7 @@ import os
 import json
 from contextlib import contextmanager
 from datetime import date
+from typing import TypedDict
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
@@ -25,19 +26,33 @@ DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
 # 各目的地的每日消費係數（相對於全國平均）
 # > 1.0 表示比平均貴，< 1.0 表示比平均便宜
-DESTINATION_FACTORS = {
-    "日本":     {"factor": 1.15, "currency": "JPY", "avg_days": 5},
-    "韓國":     {"factor": 0.95, "currency": "KRW", "avg_days": 5},
-    "泰國":     {"factor": 0.70, "currency": "THB", "avg_days": 6},
-    "越南":     {"factor": 0.55, "currency": "VND", "avg_days": 5},
-    "新加坡":   {"factor": 1.10, "currency": "SGD", "avg_days": 4},
+
+
+class DestinationInfo(TypedDict):
+    factor: float
+    currency: str
+    avg_days: int
+
+
+class BudgetTierInfo(TypedDict):
+    label: str
+    multiplier: float
+    description: str
+
+
+DESTINATION_FACTORS: dict[str, DestinationInfo] = {
+    "日本": {"factor": 1.15, "currency": "JPY", "avg_days": 5},
+    "韓國": {"factor": 0.95, "currency": "KRW", "avg_days": 5},
+    "泰國": {"factor": 0.70, "currency": "THB", "avg_days": 6},
+    "越南": {"factor": 0.55, "currency": "VND", "avg_days": 5},
+    "新加坡": {"factor": 1.10, "currency": "SGD", "avg_days": 4},
     "馬來西亞": {"factor": 0.65, "currency": "MYR", "avg_days": 5},
-    "香港":     {"factor": 1.05, "currency": "HKD", "avg_days": 4},
-    "美國":     {"factor": 1.50, "currency": "USD", "avg_days": 8},
-    "歐洲":     {"factor": 1.60, "currency": "EUR", "avg_days": 10},
-    "英國":     {"factor": 1.70, "currency": "GBP", "avg_days": 8},
-    "澳洲":     {"factor": 1.40, "currency": "AUD", "avg_days": 8},
-    "中國":     {"factor": 0.80, "currency": "CNY", "avg_days": 5},
+    "香港": {"factor": 1.05, "currency": "HKD", "avg_days": 4},
+    "美國": {"factor": 1.50, "currency": "USD", "avg_days": 8},
+    "歐洲": {"factor": 1.60, "currency": "EUR", "avg_days": 10},
+    "英國": {"factor": 1.70, "currency": "GBP", "avg_days": 8},
+    "澳洲": {"factor": 1.40, "currency": "AUD", "avg_days": 8},
+    "中國": {"factor": 0.80, "currency": "CNY", "avg_days": 5},
 }
 
 # 消費類別分配比例（根據觀光署調查資料）
@@ -51,10 +66,22 @@ CATEGORY_RATIOS = {
 }
 
 # 三檔預算的乘數
-BUDGET_TIERS = {
-    "budget":   {"label": "節省版", "multiplier": 0.7, "description": "住青旅/平價旅館、吃當地小吃、搭大眾運輸"},
-    "standard": {"label": "標準版", "multiplier": 1.0, "description": "住商務旅館、餐廳與小吃各半、偶爾計程車"},
-    "premium":  {"label": "豪華版", "multiplier": 1.5, "description": "住星級飯店、高檔餐廳、包車或新幹線"},
+BUDGET_TIERS: dict[str, BudgetTierInfo] = {
+    "budget": {
+        "label": "節省版",
+        "multiplier": 0.7,
+        "description": "住青旅/平價旅館、吃當地小吃、搭大眾運輸",
+    },
+    "standard": {
+        "label": "標準版",
+        "multiplier": 1.0,
+        "description": "住商務旅館、餐廳與小吃各半、偶爾計程車",
+    },
+    "premium": {
+        "label": "豪華版",
+        "multiplier": 1.5,
+        "description": "住星級飯店、高檔餐廳、包車或新幹線",
+    },
 }
 
 
@@ -116,7 +143,9 @@ class TripPlanner:
             total_per_person = round(adjusted_daily * tier_info["multiplier"] * days)
             total_group = total_per_person * num_travelers
 
-            breakdown = {cat: round(total_per_person * ratio) for cat, ratio in CATEGORY_RATIOS.items()}
+            breakdown = {
+                cat: round(total_per_person * ratio) for cat, ratio in CATEGORY_RATIOS.items()
+            }
 
             tiers[tier_key] = {
                 "label": tier_info["label"],
@@ -166,6 +195,7 @@ class TripPlanner:
         """嘗試將預算換算成當地幣別"""
         try:
             from src.currency import CurrencyManager
+
             cm = CurrencyManager(self.db_path)
             rate = cm.get_rate(currency_code)
 
@@ -199,22 +229,25 @@ class TripPlanner:
 
         with self._db() as (conn, cursor):
             standard = plan["tiers"]["standard"]
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO trip_plans
                 (user_id, destination, currency_code, planned_days, num_travelers,
                  suggested_budget, user_budget, budget_breakdown, data_source)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                user_id,
-                plan["destination"],
-                plan["currency_code"],
-                plan["days"],
-                plan["num_travelers"],
-                standard["total_group"],
-                user_budget,
-                json.dumps(standard["breakdown"], ensure_ascii=False),
-                plan["data_source"],
-            ))
+            """,
+                (
+                    user_id,
+                    plan["destination"],
+                    plan["currency_code"],
+                    plan["days"],
+                    plan["num_travelers"],
+                    standard["total_group"],
+                    user_budget,
+                    json.dumps(standard["breakdown"], ensure_ascii=False),
+                    plan["data_source"],
+                ),
+            )
             return cursor.lastrowid
 
     # ============================================================
@@ -239,14 +272,16 @@ class TripPlanner:
         for dest in DESTINATION_FACTORS:
             plan = self.suggest_budget(dest, days, num_travelers)
             std = plan["tiers"]["standard"]
-            results.append({
-                "destination": dest,
-                "currency": plan["currency_code"],
-                "daily_per_person": std["daily_per_person"],
-                "total_per_person": std["total_per_person"],
-                "total_group": std["total_group"],
-                "factor": plan["destination_factor"],
-            })
+            results.append(
+                {
+                    "destination": dest,
+                    "currency": plan["currency_code"],
+                    "daily_per_person": std["daily_per_person"],
+                    "total_per_person": std["total_per_person"],
+                    "total_group": std["total_group"],
+                    "factor": plan["destination_factor"],
+                }
+            )
 
         results.sort(key=lambda x: x["total_per_person"])
         return results

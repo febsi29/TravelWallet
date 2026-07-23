@@ -1,4 +1,5 @@
 """Transactions Page"""
+
 import streamlit as st
 import sqlite3
 import os
@@ -32,7 +33,8 @@ with sqlite3.connect(DB_PATH) as conn:
         """SELECT DISTINCT t.trip_id, t.trip_name FROM trips t
            JOIN trip_members tm ON t.trip_id = tm.trip_id
            WHERE tm.user_id = ?""",
-        conn, params=(uid,)
+        conn,
+        params=(uid,),
     )
     if trips.empty:
         st.warning("沒有旅行紀錄")
@@ -45,14 +47,15 @@ with sqlite3.connect(DB_PATH) as conn:
     col1, col2, col3 = st.columns(3)
 
     categories = pd.read_sql_query(
-        "SELECT DISTINCT category FROM transactions WHERE trip_id = ?",
-        conn, params=(trip_id,)
+        "SELECT DISTINCT category FROM transactions WHERE trip_id = ?", conn, params=(trip_id,)
     )["category"].tolist()
 
     with col1:
         cat_filter = st.multiselect("類別篩選", categories, default=categories)
     with col2:
-        sort_by = st.selectbox("排序", ["時間(新到舊)", "時間(舊到新)", "金額(高到低)", "金額(低到高)"])
+        sort_by = st.selectbox(
+            "排序", ["時間(新到舊)", "時間(舊到新)", "金額(高到低)", "金額(低到高)"]
+        )
     with col3:
         search = st.text_input("搜尋說明", "")
 
@@ -87,7 +90,19 @@ s4.metric("最高單筆", f"NT${df['amount_twd'].max():,.0f}" if not df.empty el
 st.markdown("---")
 if not df.empty:
     ddf = df.copy()
-    ddf.columns = ["時間", "付款人", "金額原幣", "幣別", "金額TWD", "類別", "說明", "地點", "付款方式", "分帳", "異常"]
+    ddf.columns = [
+        "時間",
+        "付款人",
+        "金額原幣",
+        "幣別",
+        "金額TWD",
+        "類別",
+        "說明",
+        "地點",
+        "付款方式",
+        "分帳",
+        "異常",
+    ]
     ddf["時間"] = ddf["時間"].str[:16]
     ddf["金額原幣"] = ddf["金額原幣"].apply(lambda x: f"{x:,.0f}")
     ddf["金額TWD"] = ddf["金額TWD"].apply(lambda x: f"NT${x:,.0f}")

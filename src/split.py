@@ -76,17 +76,22 @@ class SplitEngine:
 
             details = []
             for uid in user_ids:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO split_details (txn_id, user_id, share_amount, share_twd, share_ratio, is_settled)
                     VALUES (?, ?, ?, ?, ?, 0)
-                """, (txn_id, uid, share_amount, share_twd, ratio))
-                details.append({
-                    "split_id": cursor.lastrowid,
-                    "user_id": uid,
-                    "share_amount": share_amount,
-                    "share_twd": share_twd,
-                    "ratio": ratio,
-                })
+                """,
+                    (txn_id, uid, share_amount, share_twd, ratio),
+                )
+                details.append(
+                    {
+                        "split_id": cursor.lastrowid,
+                        "user_id": uid,
+                        "share_amount": share_amount,
+                        "share_twd": share_twd,
+                        "ratio": ratio,
+                    }
+                )
 
         return details
 
@@ -119,17 +124,22 @@ class SplitEngine:
             for uid, ratio in user_ratios.items():
                 share_amount = round(txn["amount"] * ratio, 2)
                 share_twd = round(txn["amount_twd"] * ratio)
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO split_details (txn_id, user_id, share_amount, share_twd, share_ratio, is_settled)
                     VALUES (?, ?, ?, ?, ?, 0)
-                """, (txn_id, uid, share_amount, share_twd, round(ratio, 4)))
-                details.append({
-                    "split_id": cursor.lastrowid,
-                    "user_id": uid,
-                    "share_amount": share_amount,
-                    "share_twd": share_twd,
-                    "ratio": ratio,
-                })
+                """,
+                    (txn_id, uid, share_amount, share_twd, round(ratio, 4)),
+                )
+                details.append(
+                    {
+                        "split_id": cursor.lastrowid,
+                        "user_id": uid,
+                        "share_amount": share_amount,
+                        "share_twd": share_twd,
+                        "ratio": ratio,
+                    }
+                )
 
         return details
 
@@ -162,17 +172,22 @@ class SplitEngine:
             for uid, amount in user_amounts.items():
                 ratio = round(amount / txn["amount"], 4)
                 share_twd = round(amount * txn["exchange_rate"])
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO split_details (txn_id, user_id, share_amount, share_twd, share_ratio, is_settled)
                     VALUES (?, ?, ?, ?, ?, 0)
-                """, (txn_id, uid, amount, share_twd, ratio))
-                details.append({
-                    "split_id": cursor.lastrowid,
-                    "user_id": uid,
-                    "share_amount": amount,
-                    "share_twd": share_twd,
-                    "ratio": ratio,
-                })
+                """,
+                    (txn_id, uid, amount, share_twd, ratio),
+                )
+                details.append(
+                    {
+                        "split_id": cursor.lastrowid,
+                        "user_id": uid,
+                        "share_amount": amount,
+                        "share_twd": share_twd,
+                        "ratio": ratio,
+                    }
+                )
 
         return details
 
@@ -195,29 +210,38 @@ class SplitEngine:
             raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT tm.user_id, u.display_name
                 FROM trip_members tm
                 JOIN users u ON tm.user_id = u.user_id
                 WHERE tm.trip_id = ?
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             members = {row[0]: row[1] for row in cursor.fetchall()}
 
             balances = {}
             for uid, name in members.items():
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT COALESCE(SUM(amount), 0)
                     FROM transactions
                     WHERE trip_id = ? AND paid_by = ?
-                """, (trip_id, uid))
+                """,
+                    (trip_id, uid),
+                )
                 total_paid = cursor.fetchone()[0]
 
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT COALESCE(SUM(sd.share_amount), 0)
                     FROM split_details sd
                     JOIN transactions t ON sd.txn_id = t.txn_id
                     WHERE t.trip_id = ? AND sd.user_id = ?
-                """, (trip_id, uid))
+                """,
+                    (trip_id, uid),
+                )
                 total_owed = cursor.fetchone()[0]
 
                 balances[uid] = {
@@ -233,7 +257,9 @@ class SplitEngine:
     #  最終結算（最小化轉帳次數）
     # ============================================================
 
-    def settle_trip(self, trip_id: int, exchange_rate: float = None, currency_code: str = "JPY") -> list:
+    def settle_trip(
+        self, trip_id: int, exchange_rate: float = None, currency_code: str = "JPY"
+    ) -> list:
         """
         計算最終結算方案（最小化轉帳次數）
 
@@ -258,20 +284,23 @@ class SplitEngine:
 
         if exchange_rate is None:
             with self._db() as (conn, cursor):
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT exchange_rate FROM transactions
                     WHERE trip_id = ? ORDER BY txn_datetime DESC LIMIT 1
-                """, (trip_id,))
+                """,
+                    (trip_id,),
+                )
                 row = cursor.fetchone()
                 exchange_rate = row[0] if row else 1.0
 
         creditors = sorted(
             [(uid, info["balance"]) for uid, info in balances.items() if info["balance"] > 0.5],
-            key=lambda x: -x[1]
+            key=lambda x: -x[1],
         )
         debtors = sorted(
             [(uid, -info["balance"]) for uid, info in balances.items() if info["balance"] < -0.5],
-            key=lambda x: -x[1]
+            key=lambda x: -x[1],
         )
 
         transfers = []
@@ -281,16 +310,18 @@ class SplitEngine:
             debtor_id, debt = debtors[j]
             amount = min(credit, debt)
 
-            transfers.append({
-                "from_user": debtor_id,
-                "from_name": balances[debtor_id]["name"],
-                "to_user": creditor_id,
-                "to_name": balances[creditor_id]["name"],
-                "amount": round(amount, 2),
-                "amount_twd": round(amount * exchange_rate),
-                "currency_code": currency_code,
-                "exchange_rate": exchange_rate,
-            })
+            transfers.append(
+                {
+                    "from_user": debtor_id,
+                    "from_name": balances[debtor_id]["name"],
+                    "to_user": creditor_id,
+                    "to_name": balances[creditor_id]["name"],
+                    "amount": round(amount, 2),
+                    "amount_twd": round(amount * exchange_rate),
+                    "currency_code": currency_code,
+                    "exchange_rate": exchange_rate,
+                }
+            )
 
             creditors[i] = (creditor_id, credit - amount)
             debtors[j] = (debtor_id, debt - amount)
@@ -317,19 +348,30 @@ class SplitEngine:
             cursor.execute("DELETE FROM settlements WHERE trip_id = ?", (trip_id,))
 
             for t in transfers:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO settlements
                     (trip_id, from_user, to_user, amount, currency_code, amount_twd, exchange_rate, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
-                """, (
-                    trip_id, t["from_user"], t["to_user"],
-                    t["amount"], t["currency_code"], t["amount_twd"], t["exchange_rate"]
-                ))
+                """,
+                    (
+                        trip_id,
+                        t["from_user"],
+                        t["to_user"],
+                        t["amount"],
+                        t["currency_code"],
+                        t["amount_twd"],
+                        t["exchange_rate"],
+                    ),
+                )
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE split_details SET is_settled = 0
                 WHERE txn_id IN (SELECT txn_id FROM transactions WHERE trip_id = ?)
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
 
         return len(transfers)
 
@@ -344,11 +386,14 @@ class SplitEngine:
             raise ValueError(f"settlement_id 必須為正整數，收到: {settlement_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE settlements
                 SET status = 'completed', settled_at = datetime('now')
                 WHERE settlement_id = ?
-            """, (settlement_id,))
+            """,
+                (settlement_id,),
+            )
 
     # ============================================================
     #  查詢功能
@@ -365,39 +410,51 @@ class SplitEngine:
             raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*), COALESCE(SUM(amount), 0), COALESCE(SUM(amount_twd), 0)
                 FROM transactions WHERE trip_id = ?
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             txn_count, total_amount, total_twd = cursor.fetchone()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT u.display_name, COUNT(*), SUM(t.amount), SUM(t.amount_twd)
                 FROM transactions t
                 JOIN users u ON t.paid_by = u.user_id
                 WHERE t.trip_id = ?
                 GROUP BY t.paid_by ORDER BY SUM(t.amount) DESC
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             payers = [
                 {"name": r[0], "count": r[1], "amount": r[2], "amount_twd": r[3]}
                 for r in cursor.fetchall()
             ]
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT category, COUNT(*), SUM(amount), SUM(amount_twd)
                 FROM transactions WHERE trip_id = ?
                 GROUP BY category ORDER BY SUM(amount) DESC
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             categories = [
                 {"category": r[0], "count": r[1], "amount": r[2], "amount_twd": r[3]}
                 for r in cursor.fetchall()
             ]
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*), COALESCE(SUM(amount_twd), 0)
                 FROM settlements
                 WHERE trip_id = ? AND status = 'pending'
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             pending_count, pending_twd = cursor.fetchone()
 
         return {
@@ -416,19 +473,27 @@ class SplitEngine:
 
     def _get_transaction(self, cursor, txn_id: int) -> dict | None:
         """取得單筆交易資訊"""
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT txn_id, trip_id, paid_by, amount, currency_code,
                    amount_twd, exchange_rate, category, split_type
             FROM transactions WHERE txn_id = ?
-        """, (txn_id,))
+        """,
+            (txn_id,),
+        )
         row = cursor.fetchone()
         if not row:
             return None
         return {
-            "txn_id": row[0], "trip_id": row[1], "paid_by": row[2],
-            "amount": row[3], "currency_code": row[4],
-            "amount_twd": row[5], "exchange_rate": row[6],
-            "category": row[7], "split_type": row[8],
+            "txn_id": row[0],
+            "trip_id": row[1],
+            "paid_by": row[2],
+            "amount": row[3],
+            "currency_code": row[4],
+            "amount_twd": row[5],
+            "exchange_rate": row[6],
+            "category": row[7],
+            "split_type": row[8],
         }
 
 
@@ -443,7 +508,9 @@ if __name__ == "__main__":
     balances = engine.get_net_balances(trip_id)
     for uid, info in balances.items():
         symbol = "+" if info["balance"] > 0 else "-"
-        print(f"  {info['name']}: 付了 {info['paid']:,.0f}, 該付 {info['owed']:,.0f}, 淨額 {info['balance']:,.0f} {symbol}")
+        print(
+            f"  {info['name']}: 付了 {info['paid']:,.0f}, 該付 {info['owed']:,.0f}, 淨額 {info['balance']:,.0f} {symbol}"
+        )
 
     print("\n最終結算（最小化轉帳）:")
     transfers = engine.settle_trip(trip_id)

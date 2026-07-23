@@ -113,8 +113,8 @@ class TestSettle:
         transfers = engine.settle_trip(1)
         for t in transfers:
             assert "from_user" in t
-            assert "to_user"   in t
-            assert "amount"    in t
+            assert "to_user" in t
+            assert "amount" in t
 
     def test_settle_minimizes_transfers(self, db_path):
         engine = SplitEngine(db_path)
@@ -136,7 +136,7 @@ class TestTripSummary:
         summary = engine.get_trip_summary(1)
         assert "txn_count" in summary
         assert "total_twd" in summary
-        assert "payers"    in summary
+        assert "payers" in summary
         assert "categories" in summary
 
     def test_summary_txn_count_correct(self, db_path):

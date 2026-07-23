@@ -23,13 +23,13 @@ class TestGetBurndown:
         bm = BudgetManager(db_path)
         result = bm.get_burndown(1)
         for entry in result["burndown"]:
-            assert "day"               in entry
-            assert "date"              in entry
+            assert "day" in entry
+            assert "date" in entry
             assert "planned_remaining" in entry
-            assert "actual_remaining"  in entry
-            assert "daily_spent"       in entry
-            assert "cumulative_spent"  in entry
-            assert "on_track"          in entry
+            assert "actual_remaining" in entry
+            assert "daily_spent" in entry
+            assert "cumulative_spent" in entry
+            assert "on_track" in entry
 
     def test_cumulative_is_monotone(self, db_path):
         bm = BudgetManager(db_path)
@@ -52,12 +52,12 @@ class TestPredictRemaining:
     def test_returns_correct_structure(self, db_path):
         bm = BudgetManager(db_path)
         result = bm.predict_remaining(1)
-        assert "predicted_total"    in result
-        assert "actual_spent"       in result
+        assert "predicted_total" in result
+        assert "actual_spent" in result
         assert "predicted_remaining" in result
-        assert "will_exceed"        in result
-        assert "daily_rate"         in result
-        assert "prediction_line"    in result
+        assert "will_exceed" in result
+        assert "daily_rate" in result
+        assert "prediction_line" in result
 
     def test_prediction_line_length(self, db_path):
         bm = BudgetManager(db_path)
@@ -92,7 +92,7 @@ class TestSuggestDailyLimit:
         result = bm.suggest_daily_limit(1, current_day=2)
         assert result["status"] in ("on_track", "over_budget")
         assert "suggested_daily_limit" in result
-        assert "remaining_budget"      in result
+        assert "remaining_budget" in result
 
     def test_completed_trip_status(self, db_path):
         bm = BudgetManager(db_path)
@@ -114,8 +114,8 @@ class TestAssessHealth:
     def test_returns_score_and_status(self, db_path):
         bm = BudgetManager(db_path)
         result = bm.assess_health(1)
-        assert "score"       in result
-        assert "status"      in result
+        assert "score" in result
+        assert "status" in result
         assert "usage_ratio" in result
 
     def test_score_in_valid_range(self, db_path):

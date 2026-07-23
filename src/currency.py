@@ -45,18 +45,18 @@ COMMON_CURRENCIES = {
 # 備用匯率（當 API 無法使用時的離線模式）
 # 以 1 TWD 可以換多少外幣為基準（2024 年底約略值）
 FALLBACK_RATES = {
-    "JPY": 4.61,    # 1 TWD ≈ 4.61 JPY
-    "USD": 0.031,   # 1 TWD ≈ 0.031 USD
-    "KRW": 43.5,    # 1 TWD ≈ 43.5 KRW
-    "THB": 1.07,    # 1 TWD ≈ 1.07 THB
-    "VND": 780.0,   # 1 TWD ≈ 780 VND
-    "SGD": 0.042,   # 1 TWD ≈ 0.042 SGD
-    "MYR": 0.138,   # 1 TWD ≈ 0.138 MYR
-    "HKD": 0.241,   # 1 TWD ≈ 0.241 HKD
-    "EUR": 0.029,   # 1 TWD ≈ 0.029 EUR
-    "GBP": 0.025,   # 1 TWD ≈ 0.025 GBP
-    "AUD": 0.049,   # 1 TWD ≈ 0.049 AUD
-    "CNY": 0.224,   # 1 TWD ≈ 0.224 CNY
+    "JPY": 4.61,  # 1 TWD ≈ 4.61 JPY
+    "USD": 0.031,  # 1 TWD ≈ 0.031 USD
+    "KRW": 43.5,  # 1 TWD ≈ 43.5 KRW
+    "THB": 1.07,  # 1 TWD ≈ 1.07 THB
+    "VND": 780.0,  # 1 TWD ≈ 780 VND
+    "SGD": 0.042,  # 1 TWD ≈ 0.042 SGD
+    "MYR": 0.138,  # 1 TWD ≈ 0.138 MYR
+    "HKD": 0.241,  # 1 TWD ≈ 0.241 HKD
+    "EUR": 0.029,  # 1 TWD ≈ 0.029 EUR
+    "GBP": 0.025,  # 1 TWD ≈ 0.025 GBP
+    "AUD": 0.049,  # 1 TWD ≈ 0.049 AUD
+    "CNY": 0.224,  # 1 TWD ≈ 0.224 CNY
 }
 
 
@@ -95,6 +95,7 @@ class CurrencyManager:
 
         try:
             import requests
+
             response = requests.get(API_URL, timeout=10)
             data = response.json()
 
@@ -142,10 +143,13 @@ class CurrencyManager:
             use_date = date.today().isoformat()
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT rate FROM exchange_rates
                 WHERE target_currency = ? AND recorded_date = ?
-            """, (target_currency, use_date))
+            """,
+                (target_currency, use_date),
+            )
             row = cursor.fetchone()
 
         if row:
@@ -167,7 +171,9 @@ class CurrencyManager:
     #  幣別換算
     # ============================================================
 
-    def convert(self, amount: float, from_currency: str, to_currency: str, rate: float = None) -> dict:
+    def convert(
+        self, amount: float, from_currency: str, to_currency: str, rate: float = None
+    ) -> dict:
         """
         幣別換算
 
@@ -227,11 +233,14 @@ class CurrencyManager:
             recorded_date = date.today().isoformat()
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO exchange_rates
                 (base_currency, target_currency, rate, recorded_date, source)
                 VALUES ('TWD', ?, ?, ?, 'ExchangeRate-API')
-            """, (target_currency, rate, recorded_date))
+            """,
+                (target_currency, rate, recorded_date),
+            )
 
     def save_all_rates(self, rates: dict, recorded_date: str = None) -> None:
         """批次儲存多個幣別的匯率"""
@@ -247,13 +256,16 @@ class CurrencyManager:
             raise ValueError(f"days 必須為正整數，收到: {days!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT recorded_date, rate
                 FROM exchange_rates
                 WHERE target_currency = ?
                 ORDER BY recorded_date DESC
                 LIMIT ?
-            """, (target_currency, days))
+            """,
+                (target_currency, days),
+            )
             rows = cursor.fetchall()
 
         return [{"date": r[0], "rate": r[1]} for r in reversed(rows)]

@@ -1,6 +1,7 @@
 """
 15_RiskDashboard.py - 風險評估儀表板頁面
 """
+
 import streamlit as st
 import os, sys, pandas as pd
 import plotly.graph_objects as go
@@ -49,8 +50,8 @@ if "risk_result" in st.session_state:
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("整體風險", f"{overall:.1f}")
-    c2.metric("匯率風險", f"{r['fx']['risk_score']:.1f}", delta=r['fx'].get('level'))
-    c3.metric("預算風險", f"{r['budget']['risk_score']:.1f}", delta=r['budget'].get('level'))
+    c2.metric("匯率風險", f"{r['fx']['risk_score']:.1f}", delta=r["fx"].get("level"))
+    c3.metric("預算風險", f"{r['budget']['risk_score']:.1f}", delta=r["budget"].get("level"))
     c4.metric("異常風險", f"{r['anomaly']['risk_score']:.1f}")
     c5.metric("信用風險", f"{r['credit']['risk_score']:.1f}")
 
@@ -62,13 +63,15 @@ if "risk_result" in st.session_state:
         r["anomaly"]["risk_score"],
         r["credit"]["risk_score"],
     ]
-    fig = go.Figure(go.Scatterpolar(
-        r=values + [values[0]],
-        theta=categories + [categories[0]],
-        fill="toself",
-        line_color="#2563EB",
-        fillcolor="rgba(37, 99, 235, 0.2)",
-    ))
+    fig = go.Figure(
+        go.Scatterpolar(
+            r=values + [values[0]],
+            theta=categories + [categories[0]],
+            fill="toself",
+            line_color="#2563EB",
+            fillcolor="rgba(37, 99, 235, 0.2)",
+        )
+    )
     fig.update_layout(
         polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
         title="四維度風險雷達圖",
@@ -94,7 +97,7 @@ if "risk_result" in st.session_state:
     with tabs[2]:
         anomaly = r["anomaly"]
         st.metric("風險評分", f"{anomaly['risk_score']:.1f}/100")
-        st.write(f"**異常交易率：** {anomaly.get('anomaly_rate', 0)*100:.1f}%")
+        st.write(f"**異常交易率：** {anomaly.get('anomaly_rate', 0) * 100:.1f}%")
         st.write(f"**說明：** {anomaly.get('message', '--')}")
 
     with tabs[3]:
@@ -120,16 +123,18 @@ try:
     if history:
         rows = []
         for h in history:
-            rows.append({
-                "評估時間": h.get("assessed_at", "")[:16],
-                "旅行 ID": h["trip_id"],
-                "健康指數": h["health_index"],
-                "整體風險": f"{h['overall_risk']:.1f}",
-                "匯率": f"{h['fx_risk']:.1f}",
-                "預算": f"{h['budget_risk']:.1f}",
-                "異常": f"{h['anomaly_risk']:.1f}",
-                "信用": f"{h['credit_risk']:.1f}",
-            })
+            rows.append(
+                {
+                    "評估時間": h.get("assessed_at", "")[:16],
+                    "旅行 ID": h["trip_id"],
+                    "健康指數": h["health_index"],
+                    "整體風險": f"{h['overall_risk']:.1f}",
+                    "匯率": f"{h['fx_risk']:.1f}",
+                    "預算": f"{h['budget_risk']:.1f}",
+                    "異常": f"{h['anomaly_risk']:.1f}",
+                    "信用": f"{h['credit_risk']:.1f}",
+                }
+            )
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
     else:
         st.caption("尚無評估紀錄，請先執行評估")

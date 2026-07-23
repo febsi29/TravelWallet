@@ -41,14 +41,18 @@ class TestPredictDailySpending:
 
     def test_no_data_returns_empty(self, db_path):
         import sqlite3
+
         conn = sqlite3.connect(db_path)
-        conn.execute("INSERT INTO trips (user_id, trip_name, destination, currency_code, start_date, end_date) VALUES (1, '空旅行', '測試', 'JPY', '2025-01-01', '2025-01-05')")
+        conn.execute(
+            "INSERT INTO trips (user_id, trip_name, destination, currency_code, start_date, end_date) VALUES (1, '空旅行', '測試', 'JPY', '2025-01-01', '2025-01-05')"
+        )
         conn.commit()
         conn.close()
 
         predictor = SpendingPredictor(db_path)
         # 取得新建旅行的 trip_id
         import sqlite3 as sq
+
         conn2 = sq.connect(db_path)
         row = conn2.execute("SELECT trip_id FROM trips WHERE trip_name='空旅行'").fetchone()
         conn2.close()

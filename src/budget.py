@@ -24,7 +24,6 @@ DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
 
 class BudgetManager:
-
     def __init__(self, db_path=None):
         self.db_path = db_path or DB_PATH
 
@@ -45,19 +44,25 @@ class BudgetManager:
             raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT trip_name, destination, start_date, end_date, total_budget,
                        julianday(end_date) - julianday(start_date) + 1 AS total_days
                 FROM trips WHERE trip_id = ?
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             row = cursor.fetchone()
 
         if not row:
             raise ValueError(f"Trip ID={trip_id} not found")
         return {
-            "name": row[0], "destination": row[1],
-            "start_date": row[2], "end_date": row[3],
-            "budget": row[4], "total_days": int(row[5]),
+            "name": row[0],
+            "destination": row[1],
+            "start_date": row[2],
+            "end_date": row[3],
+            "budget": row[4],
+            "total_days": int(row[5]),
         }
 
     # ============================================================
@@ -79,11 +84,14 @@ class BudgetManager:
         daily_planned = budget / total_days if total_days > 0 else 0
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT DATE(txn_datetime) AS day, SUM(amount_twd) AS daily_total
                 FROM transactions WHERE trip_id = ?
                 GROUP BY DATE(txn_datetime) ORDER BY day
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             daily_spending = {r[0]: r[1] for r in cursor.fetchall()}
 
             cursor.execute("SELECT COUNT(*) FROM trip_members WHERE trip_id = ?", (trip_id,))
@@ -103,15 +111,17 @@ class BudgetManager:
             actual_remaining -= day_spent_per_person
             cumulative_spent += day_spent_per_person
 
-            burndown.append({
-                "day": i + 1,
-                "date": current_date,
-                "planned_remaining": round(planned_remaining),
-                "actual_remaining": round(actual_remaining),
-                "daily_spent": day_spent_per_person,
-                "cumulative_spent": cumulative_spent,
-                "on_track": actual_remaining >= planned_remaining,
-            })
+            burndown.append(
+                {
+                    "day": i + 1,
+                    "date": current_date,
+                    "planned_remaining": round(planned_remaining),
+                    "actual_remaining": round(actual_remaining),
+                    "daily_spent": day_spent_per_person,
+                    "cumulative_spent": cumulative_spent,
+                    "on_track": actual_remaining >= planned_remaining,
+                }
+            )
 
         return {
             "trip": trip,
@@ -151,7 +161,7 @@ class BudgetManager:
         sum_xy = sum(p[0] * p[1] for p in points)
         sum_x2 = sum(p[0] ** 2 for p in points)
 
-        denominator = n * sum_x2 - sum_x ** 2
+        denominator = n * sum_x2 - sum_x**2
         if denominator == 0:
             b = 0
             a = sum_y / n
@@ -271,7 +281,7 @@ class BudgetManager:
         if len(daily_amounts) >= 2:
             mean = sum(daily_amounts) / len(daily_amounts)
             variance = sum((x - mean) ** 2 for x in daily_amounts) / len(daily_amounts)
-            cv = (variance ** 0.5) / mean if mean > 0 else 0
+            cv = (variance**0.5) / mean if mean > 0 else 0
             consistency_bonus = max(0, 10 - int(cv * 10))
             score = min(100, score + consistency_bonus)
 
@@ -303,7 +313,9 @@ if __name__ == "__main__":
     print(f"  Trip: {trip['name']}  Budget: NT${trip['budget']:,} / {trip['total_days']} days")
     for b in bd["burndown"]:
         status = "OK" if b["on_track"] else "OVER"
-        print(f"  Day {b['day']} {b['date']}: NT${b['daily_spent']:>7,}  cum NT${b['cumulative_spent']:>9,}  {status}")
+        print(
+            f"  Day {b['day']} {b['date']}: NT${b['daily_spent']:>7,}  cum NT${b['cumulative_spent']:>9,}  {status}"
+        )
 
     print("\n[2] Health Assessment")
     health = bm.assess_health(trip_id)

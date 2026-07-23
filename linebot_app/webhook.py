@@ -37,10 +37,12 @@ app = FastAPI(title="TravelWallet LINE Bot")
 @app.on_event("startup")
 async def _seed_on_startup() -> None:
     """在背景執行 seed_data，不阻擋 port 綁定。僅在 users 表無資料時才執行。"""
+
     def _run() -> None:
         try:
             import sqlite3 as _sqlite3
             from config.settings import DB_PATH as _DB_PATH
+
             with _sqlite3.connect(_DB_PATH) as _conn:
                 row = _conn.execute("SELECT COUNT(*) FROM users").fetchone()
                 if row and row[0] > 0:
@@ -51,6 +53,7 @@ async def _seed_on_startup() -> None:
 
         try:
             from database import seed_data  # noqa: F401 — 執行即觸發 seed
+
             logger.info("seed_data 執行完成")
         except Exception as exc:
             logger.warning("seed_data 執行失敗（非致命）: %s", exc)
@@ -101,9 +104,7 @@ async def callback(request: Request) -> JSONResponse:
         try:
             if isinstance(event, FollowEvent):
                 handle_follow(event, messaging_api)
-            elif isinstance(event, MessageEvent) and isinstance(
-                event.message, TextMessageContent
-            ):
+            elif isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
                 handle_text_message(event, messaging_api)
             elif isinstance(event, PostbackEvent):
                 handle_postback(event, messaging_api)

@@ -8,12 +8,12 @@ class TestSuggestBudget:
     def test_returns_correct_structure(self, db_path):
         planner = TripPlanner(db_path)
         plan = planner.suggest_budget("日本", 5, num_travelers=2)
-        assert "destination"     in plan
-        assert "days"            in plan
-        assert "num_travelers"   in plan
-        assert "tiers"           in plan
+        assert "destination" in plan
+        assert "days" in plan
+        assert "num_travelers" in plan
+        assert "tiers" in plan
         assert "category_ratios" in plan
-        assert "data_source"     in plan
+        assert "data_source" in plan
 
     def test_three_tiers_returned(self, db_path):
         planner = TripPlanner(db_path)
@@ -24,8 +24,14 @@ class TestSuggestBudget:
         """豪華版 > 標準版 > 節省版"""
         planner = TripPlanner(db_path)
         plan = planner.suggest_budget("日本", 5)
-        assert plan["tiers"]["premium"]["total_per_person"] > plan["tiers"]["standard"]["total_per_person"]
-        assert plan["tiers"]["standard"]["total_per_person"] > plan["tiers"]["budget"]["total_per_person"]
+        assert (
+            plan["tiers"]["premium"]["total_per_person"]
+            > plan["tiers"]["standard"]["total_per_person"]
+        )
+        assert (
+            plan["tiers"]["standard"]["total_per_person"]
+            > plan["tiers"]["budget"]["total_per_person"]
+        )
 
     def test_group_total_is_per_person_times_travelers(self, db_path):
         planner = TripPlanner(db_path)
@@ -48,10 +54,12 @@ class TestSuggestBudget:
 
     def test_destination_factor_applied(self, db_path):
         planner = TripPlanner(db_path)
-        plan_japan = planner.suggest_budget("日本", 5)   # factor=1.15
-        plan_thai  = planner.suggest_budget("泰國", 5)   # factor=0.70
-        assert plan_japan["tiers"]["standard"]["total_per_person"] > \
-               plan_thai["tiers"]["standard"]["total_per_person"]
+        plan_japan = planner.suggest_budget("日本", 5)  # factor=1.15
+        plan_thai = planner.suggest_budget("泰國", 5)  # factor=0.70
+        assert (
+            plan_japan["tiers"]["standard"]["total_per_person"]
+            > plan_thai["tiers"]["standard"]["total_per_person"]
+        )
 
     def test_invalid_destination_raises(self, db_path):
         planner = TripPlanner(db_path)
@@ -84,9 +92,9 @@ class TestCompareDestinations:
     def test_each_entry_has_required_keys(self, db_path):
         planner = TripPlanner(db_path)
         for c in planner.compare_destinations(days=5):
-            assert "destination"      in c
+            assert "destination" in c
             assert "total_per_person" in c
-            assert "factor"           in c
+            assert "factor" in c
 
     def test_invalid_days_raises(self, db_path):
         planner = TripPlanner(db_path)

@@ -115,10 +115,11 @@ class TestGuessCategory:
 
 
 class TestScanReceipt:
-    def test_scan_creates_record(self, db_path):
+    def test_scan_creates_record(self, db_path, tmp_path):
         ocr = ReceiptOCR(db_path)
-        # 使用不存在的圖片路徑，scan 會降級到 mock text
-        result = ocr.scan_receipt(image_path="fake_receipt.jpg", user_id=1, trip_id=1)
+        # 使用暫存目錄中的不存在圖片路徑，scan 會安全降級到 mock text。
+        image_path = str(tmp_path / "fake_receipt.jpg")
+        result = ocr.scan_receipt(image_path=image_path, user_id=1, trip_id=1)
         assert "receipt_id" in result
         assert result["receipt_id"] is not None
         assert "confidence" in result
@@ -136,16 +137,18 @@ class TestScanReceipt:
 
 
 class TestGetReceipts:
-    def test_returns_list(self, db_path):
+    def test_returns_list(self, db_path, tmp_path):
         ocr = ReceiptOCR(db_path)
-        ocr.scan_receipt(image_path="fake.jpg", user_id=1, trip_id=1)
+        image_path = str(tmp_path / "fake.jpg")
+        ocr.scan_receipt(image_path=image_path, user_id=1, trip_id=1)
         results = ocr.get_receipts(user_id=1)
         assert isinstance(results, list)
         assert len(results) >= 1
 
-    def test_filter_by_trip(self, db_path):
+    def test_filter_by_trip(self, db_path, tmp_path):
         ocr = ReceiptOCR(db_path)
-        ocr.scan_receipt(image_path="fake.jpg", user_id=1, trip_id=1)
+        image_path = str(tmp_path / "fake.jpg")
+        ocr.scan_receipt(image_path=image_path, user_id=1, trip_id=1)
         results = ocr.get_receipts(user_id=1, trip_id=1)
         assert all(r["trip_id"] == 1 for r in results)
 
@@ -156,9 +159,10 @@ class TestGetReceipts:
 
 
 class TestRejectReceipt:
-    def test_reject_changes_status(self, db_path):
+    def test_reject_changes_status(self, db_path, tmp_path):
         ocr = ReceiptOCR(db_path)
-        result = ocr.scan_receipt(image_path="fake.jpg", user_id=1, trip_id=1)
+        image_path = str(tmp_path / "fake.jpg")
+        result = ocr.scan_receipt(image_path=image_path, user_id=1, trip_id=1)
         receipt_id = result["receipt_id"]
         ocr.reject_receipt(receipt_id)
         receipts = ocr.get_receipts(user_id=1)

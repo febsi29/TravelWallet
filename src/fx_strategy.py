@@ -21,8 +21,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 
 # 建議門檻：若當前匯率比 30 日均值便宜超過此比例，視為「好時機」
-GOOD_RATE_THRESHOLD = 0.02   # 2% 優於均值
-BAD_RATE_THRESHOLD  = 0.02   # 2% 劣於均值
+GOOD_RATE_THRESHOLD = 0.02  # 2% 優於均值
+BAD_RATE_THRESHOLD = 0.02  # 2% 劣於均值
 
 
 class FxStrategy:
@@ -64,13 +64,16 @@ class FxStrategy:
             raise ValueError(f"days 必須為正整數，收到: {days!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT recorded_date, rate
                 FROM exchange_rates
                 WHERE target_currency = ?
                 ORDER BY recorded_date DESC
                 LIMIT ?
-            """, (currency.upper(), days))
+            """,
+                (currency.upper(), days),
+            )
             rows = cursor.fetchall()
 
         return [{"date": r[0], "rate": r[1]} for r in reversed(rows)]
@@ -114,7 +117,7 @@ class FxStrategy:
         min_entry = next(h for h in history if h["rate"] == min_rate)
 
         return {
-            "best": {"date": max_entry["date"], "rate": max_rate},   # 台幣最強，最划算
+            "best": {"date": max_entry["date"], "rate": max_rate},  # 台幣最強，最划算
             "worst": {"date": min_entry["date"], "rate": min_rate},  # 台幣最弱，最不划算
         }
 
@@ -157,7 +160,7 @@ class FxStrategy:
         avg_rate = sum(h["rate"] for h in history) / len(history)
 
         # 移動平均
-        ma7  = self.moving_average(history, min(7, len(history)))
+        ma7 = self.moving_average(history, min(7, len(history)))
         ma30 = self.moving_average(history, min(30, len(history)))
 
         extremes = self.find_extremes(history)
@@ -169,13 +172,13 @@ class FxStrategy:
             recommendation = "buy_now"
             message = (
                 f"目前匯率 {current_rate:.4f} 比近 {days} 日均值 {avg_rate:.4f} "
-                f"好 {diff_from_avg*100:.1f}%，建議現在換匯"
+                f"好 {diff_from_avg * 100:.1f}%，建議現在換匯"
             )
         elif diff_from_avg <= -BAD_RATE_THRESHOLD:
             recommendation = "wait"
             message = (
                 f"目前匯率 {current_rate:.4f} 比近 {days} 日均值 {avg_rate:.4f} "
-                f"差 {abs(diff_from_avg)*100:.1f}%，建議等待更好時機"
+                f"差 {abs(diff_from_avg) * 100:.1f}%，建議等待更好時機"
             )
         else:
             recommendation = "neutral"
@@ -186,14 +189,14 @@ class FxStrategy:
 
         # 節省試算（與最差時機比較）
         worst_rate = extremes.get("worst", {}).get("rate", current_rate)
-        best_rate  = extremes.get("best",  {}).get("rate", current_rate)
+        best_rate = extremes.get("best", {}).get("rate", current_rate)
 
-        foreign_now   = round(amount_twd * current_rate, 2)
-        foreign_best  = round(amount_twd * best_rate,    2)
-        foreign_worst = round(amount_twd * worst_rate,   2)
+        foreign_now = round(amount_twd * current_rate, 2)
+        foreign_best = round(amount_twd * best_rate, 2)
+        foreign_worst = round(amount_twd * worst_rate, 2)
 
         vs_worst_saving = round(foreign_now - foreign_worst, 2)
-        vs_best_missing = round(foreign_best - foreign_now,  2)
+        vs_best_missing = round(foreign_best - foreign_now, 2)
 
         return {
             "currency": currency,
@@ -205,11 +208,11 @@ class FxStrategy:
             "extremes": extremes,
             "amount_twd": amount_twd,
             "foreign_at_current": foreign_now,
-            "foreign_at_best":    foreign_best,
-            "foreign_at_worst":   foreign_worst,
-            "vs_worst_saving":    vs_worst_saving,   # 與最差時機比，現在多換多少
-            "vs_best_missing":    vs_best_missing,   # 與最好時機比，還差多少
-            "ma7":  ma7,
+            "foreign_at_best": foreign_best,
+            "foreign_at_worst": foreign_worst,
+            "vs_worst_saving": vs_worst_saving,  # 與最差時機比，現在多換多少
+            "vs_best_missing": vs_best_missing,  # 與最好時機比，還差多少
+            "ma7": ma7,
             "ma30": ma30,
             "history": history,
         }
@@ -244,10 +247,7 @@ if __name__ == "__main__":
     # 先儲存備用匯率以供測試
     cm = CurrencyManager()
     cm.save_all_rates(FALLBACK_RATES, "2026-03-01")
-    cm.save_all_rates(
-        {k: round(v * 1.02, 6) for k, v in FALLBACK_RATES.items()},
-        "2026-03-05"
-    )
+    cm.save_all_rates({k: round(v * 1.02, 6) for k, v in FALLBACK_RATES.items()}, "2026-03-05")
     cm.save_all_rates(FALLBACK_RATES, "2026-03-08")
 
     fx = FxStrategy()

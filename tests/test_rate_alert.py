@@ -36,7 +36,9 @@ class TestCreateAlert:
     def test_invalid_direction(self, db_path):
         svc = RateAlertService(db_path)
         with pytest.raises(ValueError):
-            svc.create_alert(user_id=1, target_currency="JPY", target_rate=4.8, direction="sideways")
+            svc.create_alert(
+                user_id=1, target_currency="JPY", target_rate=4.8, direction="sideways"
+            )
 
     def test_invalid_rate(self, db_path):
         svc = RateAlertService(db_path)

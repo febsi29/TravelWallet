@@ -101,8 +101,7 @@ class TestTransfer:
         ws = WalletService(db_path)
         ws.deposit(user_id=1, currency_code="TWD", amount=50000)
         result = ws.transfer(
-            user_id=1, from_currency="TWD", to_currency="JPY",
-            amount=1000, locked_rate=4.5
+            user_id=1, from_currency="TWD", to_currency="JPY", amount=1000, locked_rate=4.5
         )
         assert result["converted_amount"] == 4500.0
         assert result["rate"] == 4.5
@@ -112,8 +111,7 @@ class TestTransfer:
         ws.deposit(user_id=1, currency_code="TWD", amount=50000)
         with pytest.raises(ValueError):
             ws.transfer(
-                user_id=1, from_currency="TWD", to_currency="JPY",
-                amount=1000, locked_rate=-1.0
+                user_id=1, from_currency="TWD", to_currency="JPY", amount=1000, locked_rate=-1.0
             )
 
 

@@ -37,6 +37,7 @@ ANTHROPIC_API_VERSION = "2023-06-01"
 #  底層 HTTP 客戶端
 # ============================================================
 
+
 class ClaudeClient:
     """
     封裝 Anthropic Messages API 的輕量 HTTP 客戶端。
@@ -73,6 +74,7 @@ class ClaudeClient:
             return None
         try:
             import requests
+
             payload = {
                 "model": model,
                 "max_tokens": max_tokens,
@@ -115,20 +117,23 @@ class ClaudeClient:
             return None
         try:
             import requests
-            messages = [{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": image_media_type,
-                            "data": image_b64,
+
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": image_media_type,
+                                "data": image_b64,
+                            },
                         },
-                    },
-                    {"type": "text", "text": prompt},
-                ],
-            }]
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ]
             payload = {
                 "model": model,
                 "max_tokens": max_tokens,
@@ -154,6 +159,7 @@ class ClaudeClient:
 # ============================================================
 #  功能一：收據 Vision OCR 解析器
 # ============================================================
+
 
 class ReceiptVisionParser:
     """
@@ -234,6 +240,7 @@ class ReceiptVisionParser:
 #  功能二：智慧財務顧問
 # ============================================================
 
+
 class FinancialAdvisorAgent:
     """
     對話式旅行財務顧問。
@@ -277,7 +284,8 @@ class FinancialAdvisorAgent:
             with self._db() as (conn, cursor):
                 cursor.execute(
                     "SELECT trip_name, destination, start_date, end_date, total_budget, currency_code "
-                    "FROM trips WHERE trip_id = ?", (trip_id,)
+                    "FROM trips WHERE trip_id = ?",
+                    (trip_id,),
                 )
                 row = cursor.fetchone()
                 if row:
@@ -290,13 +298,13 @@ class FinancialAdvisorAgent:
                 cursor.execute(
                     "SELECT category, COUNT(*) as cnt, SUM(amount_twd) as total "
                     "FROM transactions WHERE trip_id = ? GROUP BY category ORDER BY total DESC",
-                    (trip_id,)
+                    (trip_id,),
                 )
                 cats = cursor.fetchall()
                 if cats:
                     total_all = sum(c[2] for c in cats)
                     cat_lines = [
-                        f"  {c[0]}: NT${c[2]:,.0f}（{c[2]/total_all*100:.1f}%，{c[1]}筆）"
+                        f"  {c[0]}: NT${c[2]:,.0f}（{c[2] / total_all * 100:.1f}%，{c[1]}筆）"
                         for c in cats
                     ]
                     parts.append("各類別消費：\n" + "\n".join(cat_lines))
@@ -304,7 +312,7 @@ class FinancialAdvisorAgent:
 
                 cursor.execute(
                     "SELECT COUNT(*) FROM transactions WHERE trip_id = ? AND is_anomaly = 1",
-                    (trip_id,)
+                    (trip_id,),
                 )
                 anomaly_count = cursor.fetchone()[0]
                 if anomaly_count > 0:
@@ -345,6 +353,7 @@ class FinancialAdvisorAgent:
         try:
             from src.budget import BudgetManager
             from src.analytics import Analytics
+
             bm = BudgetManager(self.db_path)
             ana = Analytics(self.db_path)
             health = bm.assess_health(trip_id)
@@ -367,6 +376,7 @@ class FinancialAdvisorAgent:
 # ============================================================
 #  功能三：異常交易 LLM 說明
 # ============================================================
+
 
 class AnomalyExplainer:
     """
@@ -455,6 +465,7 @@ class AnomalyExplainer:
 #  功能四：信用卡推薦對話
 # ============================================================
 
+
 class CardAdvisorAgent:
     """
     對話式信用卡推薦 Agent。
@@ -482,7 +493,7 @@ class CardAdvisorAgent:
     def __init__(self, client: ClaudeClient, db_path: str):
         self.client = client
         self.db_path = db_path
-        self._cards_cache = None
+        self._cards_cache: str | None = None
 
     def get_cards_summary(self) -> str:
         """格式化信用卡資訊供 LLM 使用。"""
@@ -490,6 +501,7 @@ class CardAdvisorAgent:
             return self._cards_cache
         try:
             from src.card_recommend import CardRecommendService, seed_cards
+
             seed_cards(self.db_path)
             svc = CardRecommendService(self.db_path)
             cards = svc.get_all_cards()
@@ -540,6 +552,7 @@ class CardAdvisorAgent:
     def _fallback_recommend(self, spending_profile: dict | None) -> str:
         try:
             from src.card_recommend import CardRecommendService, seed_cards
+
             seed_cards(self.db_path)
             svc = CardRecommendService(self.db_path)
             results = svc.recommend_by_category(category="海外", amount=10000, region="日本")
@@ -560,6 +573,7 @@ class CardAdvisorAgent:
 # ============================================================
 #  功能五：預算規劃 Agent
 # ============================================================
+
 
 class BudgetPlannerAgent:
     """
@@ -603,6 +617,7 @@ class BudgetPlannerAgent:
             dict: {base_plan, ai_analysis, source}
         """
         from src.planner import TripPlanner
+
         planner = TripPlanner(self.db_path)
         try:
             base_plan = planner.suggest_budget(destination, days, num_travelers)
@@ -610,7 +625,9 @@ class BudgetPlannerAgent:
             # 目的地不在資料庫中，使用預設
             base_plan = planner.suggest_budget("日本", days, num_travelers)
 
-        base_text = self._format_base_plan(base_plan, destination, days, num_travelers, travel_style)
+        base_text = self._format_base_plan(
+            base_plan, destination, days, num_travelers, travel_style
+        )
         history_context = ""
         if user_id:
             history_context = self._get_history_context(user_id)
@@ -622,8 +639,7 @@ class BudgetPlannerAgent:
         )
         user_msg = (
             f"請為 {destination} {days} 天 {num_travelers} 人的旅行，"
-            f"以「{travel_style}」風格規劃預算。"
-            + (f" {extra}" if extra else "")
+            f"以「{travel_style}」風格規劃預算。" + (f" {extra}" if extra else "")
         )
 
         ai_analysis = self.client.chat(
@@ -651,6 +667,7 @@ class BudgetPlannerAgent:
         回傳 (回覆文字, 更新後的 current_params)
         """
         from src.planner import TripPlanner, DESTINATION_FACTORS
+
         system = (
             "你是旅遊預算助理。根據對話調整旅行參數（目的地/天數/人數/風格）並重新計算預算。"
             f"目前參數：{json.dumps(current_params, ensure_ascii=False)}\n"
@@ -688,16 +705,17 @@ class BudgetPlannerAgent:
         std = tiers.get("standard", {})
         breakdown = std.get("breakdown", {})
         if breakdown:
-            lines.append("標準版類別分配：" + "、".join(
-                f"{k} NT${v:,}" for k, v in breakdown.items()
-            ))
+            lines.append(
+                "標準版類別分配：" + "、".join(f"{k} NT${v:,}" for k, v in breakdown.items())
+            )
         return "\n".join(lines)
 
     def _get_history_context(self, user_id: int) -> str:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT t.destination, SUM(tx.amount_twd) as total,
                            COUNT(tx.txn_id) as cnt
                     FROM trips t
@@ -705,12 +723,12 @@ class BudgetPlannerAgent:
                     WHERE t.user_id = ?
                     GROUP BY t.destination
                     ORDER BY total DESC LIMIT 3
-                """, (user_id,))
+                """,
+                    (user_id,),
+                )
                 rows = cursor.fetchall()
                 if rows:
-                    return "、".join(
-                        f"{r[0]}（NT${r[1]:,.0f}，{r[2]}筆交易）" for r in rows
-                    )
+                    return "、".join(f"{r[0]}（NT${r[1]:,.0f}，{r[2]}筆交易）" for r in rows)
         except Exception:
             pass
         return ""
@@ -719,6 +737,7 @@ class BudgetPlannerAgent:
 # ============================================================
 #  統一對外入口
 # ============================================================
+
 
 class AIAgentService:
     """

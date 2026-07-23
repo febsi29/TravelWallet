@@ -1,6 +1,7 @@
 """
 14_CardRecommend.py - 信用卡推薦頁面
 """
+
 import streamlit as st
 import os, sys, pandas as pd
 import plotly.express as px
@@ -39,21 +40,29 @@ if st.button("分析並推薦", type="primary"):
 if "trip_recommend" in st.session_state:
     results = st.session_state["trip_recommend"]
     best = results[0]
-    st.info(f"推薦首選：**{best['card_name']}**（{best['issuer']}）— 預估淨回饋 NT${best['net_benefit']:,.0f}")
+    st.info(
+        f"推薦首選：**{best['card_name']}**（{best['issuer']}）— 預估淨回饋 NT${best['net_benefit']:,.0f}"
+    )
 
-    df = pd.DataFrame([{
-        "卡片名稱": r["card_name"],
-        "發卡行": r["issuer"],
-        "預估回饋": f"NT${r['total_reward']:,.0f}",
-        "海外手續費": f"NT${r['total_fee']:,.0f}",
-        "淨回饋": f"NT${r['net_benefit']:,.0f}",
-        "最佳類別": r.get("top_category") or "--",
-    } for r in results])
+    df = pd.DataFrame(
+        [
+            {
+                "卡片名稱": r["card_name"],
+                "發卡行": r["issuer"],
+                "預估回饋": f"NT${r['total_reward']:,.0f}",
+                "海外手續費": f"NT${r['total_fee']:,.0f}",
+                "淨回饋": f"NT${r['net_benefit']:,.0f}",
+                "最佳類別": r.get("top_category") or "--",
+            }
+            for r in results
+        ]
+    )
     st.dataframe(df, use_container_width=True, hide_index=True)
 
     fig = px.bar(
         [{"卡片": r["card_name"], "淨回饋": r["net_benefit"]} for r in results],
-        x="卡片", y="淨回饋",
+        x="卡片",
+        y="淨回饋",
         title="各卡片預估淨回饋比較（TWD）",
         color="淨回饋",
         color_continuous_scale="Blues",
@@ -80,14 +89,19 @@ if st.button("查詢最佳卡片"):
             region=region.strip() or "all",
         )
         if results:
-            df = pd.DataFrame([{
-                "卡片名稱": r["card_name"],
-                "回饋金額": f"NT${r['reward_amount']:,.1f}",
-                "手續費": f"NT${r['fee_amount']:,.1f}",
-                "淨回饋": f"NT${r['net_benefit']:,.1f}",
-                "回饋率": f"{r['reward_rate']:.1f}%",
-                "回饋類型": r["reward_type"],
-            } for r in results])
+            df = pd.DataFrame(
+                [
+                    {
+                        "卡片名稱": r["card_name"],
+                        "回饋金額": f"NT${r['reward_amount']:,.1f}",
+                        "手續費": f"NT${r['fee_amount']:,.1f}",
+                        "淨回饋": f"NT${r['net_benefit']:,.1f}",
+                        "回饋率": f"{r['reward_rate']:.1f}%",
+                        "回饋類型": r["reward_type"],
+                    }
+                    for r in results
+                ]
+            )
             st.dataframe(df, use_container_width=True, hide_index=True)
         else:
             st.caption("目前無卡片資料，已自動初始化")
@@ -102,16 +116,21 @@ cards = svc.get_all_cards()
 if cards:
     with st.expander("檢視所有卡片", expanded=False):
         for card in cards:
-            st.markdown(f"**{card['card_name']}**（{card['issuer']}）"
-                        f" — 年費 NT${card['annual_fee']:,.0f}"
-                        f" ｜ 海外手續費 {card['overseas_fee_pct']:.1f}%")
+            st.markdown(
+                f"**{card['card_name']}**（{card['issuer']}）"
+                f" — 年費 NT${card['annual_fee']:,.0f}"
+                f" ｜ 海外手續費 {card['overseas_fee_pct']:.1f}%"
+            )
             if card["rewards"]:
-                reward_rows = [{
-                    "類別": r["category"],
-                    "地區": r["region"],
-                    "類型": r["reward_type"],
-                    "回饋率": f"{r['reward_rate']:.1f}%",
-                    "上限": r.get("reward_cap") or "無",
-                } for r in card["rewards"]]
+                reward_rows = [
+                    {
+                        "類別": r["category"],
+                        "地區": r["region"],
+                        "類型": r["reward_type"],
+                        "回饋率": f"{r['reward_rate']:.1f}%",
+                        "上限": r.get("reward_cap") or "無",
+                    }
+                    for r in card["rewards"]
+                ]
                 st.dataframe(pd.DataFrame(reward_rows), use_container_width=True, hide_index=True)
             st.markdown("---")

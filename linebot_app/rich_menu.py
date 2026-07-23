@@ -86,9 +86,7 @@ def create_rich_menu(headers: dict[str, str]) -> str:
     response = requests.post(url, headers=headers, json=body, timeout=30)
 
     if response.status_code != 200:
-        raise RuntimeError(
-            f"建立 Rich Menu 失敗：{response.status_code} {response.text}"
-        )
+        raise RuntimeError(f"建立 Rich Menu 失敗：{response.status_code} {response.text}")
 
     rich_menu_id: str = response.json()["richMenuId"]
     print(f"Rich Menu 建立成功，ID：{rich_menu_id}")
@@ -103,9 +101,7 @@ def set_default_rich_menu(rich_menu_id: str, headers: dict[str, str]) -> None:
     response = requests.post(url, headers=auth_headers, timeout=30)
 
     if response.status_code != 200:
-        raise RuntimeError(
-            f"設定預設 Rich Menu 失敗：{response.status_code} {response.text}"
-        )
+        raise RuntimeError(f"設定預設 Rich Menu 失敗：{response.status_code} {response.text}")
 
     print(f"已將 Rich Menu（{rich_menu_id}）設為預設選單。")
 

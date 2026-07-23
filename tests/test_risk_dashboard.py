@@ -98,12 +98,11 @@ class TestAssessOverall:
 
     def test_saves_to_db(self, db_path):
         import sqlite3
+
         rd = RiskDashboard(db_path)
         rd.assess_overall(user_id=1, trip_id=1)
         conn = sqlite3.connect(db_path)
-        count = conn.execute(
-            "SELECT COUNT(*) FROM risk_assessments WHERE user_id=1"
-        ).fetchone()[0]
+        count = conn.execute("SELECT COUNT(*) FROM risk_assessments WHERE user_id=1").fetchone()[0]
         conn.close()
         assert count >= 1
 

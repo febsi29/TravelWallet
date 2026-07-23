@@ -1,6 +1,7 @@
 """
 12_Community.py - 社群排行榜頁面
 """
+
 import streamlit as st
 import os, sys, pandas as pd
 import plotly.express as px
@@ -42,18 +43,24 @@ with tab1:
     try:
         frugal = svc.get_leaderboard(metric="frugal", limit=10)
         if frugal:
-            df = pd.DataFrame([{
-                "排名": i + 1,
-                "目的地": r["destination"],
-                "天數": r["trip_days"],
-                "人數": r["num_travelers"],
-                "每人每日（TWD）": f"NT${r['per_person_daily']:,.0f}",
-            } for i, r in enumerate(frugal)])
+            df = pd.DataFrame(
+                [
+                    {
+                        "排名": i + 1,
+                        "目的地": r["destination"],
+                        "天數": r["trip_days"],
+                        "人數": r["num_travelers"],
+                        "每人每日（TWD）": f"NT${r['per_person_daily']:,.0f}",
+                    }
+                    for i, r in enumerate(frugal)
+                ]
+            )
             st.dataframe(df, use_container_width=True, hide_index=True)
 
             fig = px.bar(
                 [{"目的地": r["destination"], "每人每日": r["per_person_daily"]} for r in frugal],
-                x="目的地", y="每人每日",
+                x="目的地",
+                y="每人每日",
                 title="省錢榜 — 每人每日消費（TWD）",
                 color="每人每日",
                 color_continuous_scale="Blues",
@@ -69,13 +76,18 @@ with tab2:
     try:
         spenders = svc.get_leaderboard(metric="spender", limit=10)
         if spenders:
-            df = pd.DataFrame([{
-                "排名": i + 1,
-                "目的地": r["destination"],
-                "天數": r["trip_days"],
-                "人數": r["num_travelers"],
-                "每人每日（TWD）": f"NT${r['per_person_daily']:,.0f}",
-            } for i, r in enumerate(spenders)])
+            df = pd.DataFrame(
+                [
+                    {
+                        "排名": i + 1,
+                        "目的地": r["destination"],
+                        "天數": r["trip_days"],
+                        "人數": r["num_travelers"],
+                        "每人每日（TWD）": f"NT${r['per_person_daily']:,.0f}",
+                    }
+                    for i, r in enumerate(spenders)
+                ]
+            )
             st.dataframe(df, use_container_width=True, hide_index=True)
         else:
             st.caption("尚無資料")
@@ -123,16 +135,26 @@ if st.button("比較目的地"):
     if dests:
         try:
             comparison = svc.get_destination_comparison(dests)
-            df = pd.DataFrame([{
-                "目的地": c["destination"],
-                "旅行筆數": c["count"],
-                "平均每人每日（TWD）": f"NT${c['avg_daily']:,.0f}",
-            } for c in comparison])
+            df = pd.DataFrame(
+                [
+                    {
+                        "目的地": c["destination"],
+                        "旅行筆數": c["count"],
+                        "平均每人每日（TWD）": f"NT${c['avg_daily']:,.0f}",
+                    }
+                    for c in comparison
+                ]
+            )
             st.dataframe(df, use_container_width=True, hide_index=True)
 
             fig = px.bar(
-                [{"目的地": c["destination"], "平均每人每日": c["avg_daily"]} for c in comparison if c["avg_daily"] > 0],
-                x="目的地", y="平均每人每日",
+                [
+                    {"目的地": c["destination"], "平均每人每日": c["avg_daily"]}
+                    for c in comparison
+                    if c["avg_daily"] > 0
+                ],
+                x="目的地",
+                y="平均每人每日",
                 title="各目的地平均每人每日消費比較",
                 color_discrete_sequence=["#2563EB"],
             )

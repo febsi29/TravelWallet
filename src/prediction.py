@@ -46,17 +46,28 @@ class SpendingPredictor:
 
     def _get_trip_info(self, trip_id: int) -> dict:
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT trip_id, trip_name, destination, currency_code,
                        start_date, end_date, total_budget,
                        CAST(julianday(end_date) - julianday(start_date) + 1 AS INTEGER) AS total_days
                 FROM trips WHERE trip_id = ?
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             row = cursor.fetchone()
         if not row:
             raise ValueError(f"找不到 trip_id={trip_id}")
-        keys = ["trip_id", "trip_name", "destination", "currency_code",
-                "start_date", "end_date", "budget", "total_days"]
+        keys = [
+            "trip_id",
+            "trip_name",
+            "destination",
+            "currency_code",
+            "start_date",
+            "end_date",
+            "budget",
+            "total_days",
+        ]
         return dict(zip(keys, row))
 
     # ============================================================
@@ -81,6 +92,7 @@ class SpendingPredictor:
 
         try:
             from src.budget import BudgetManager
+
             bm = BudgetManager(self.db_path)
             prediction = bm.predict_remaining(trip_id)
             trip = self._get_trip_info(trip_id)
@@ -140,13 +152,16 @@ class SpendingPredictor:
             raise ValueError(f"trip_id 必須為正整數，收到: {trip_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT DATE(txn_datetime) AS day, SUM(amount_twd) AS daily_total
                 FROM transactions
                 WHERE trip_id = ?
                 GROUP BY DATE(txn_datetime)
                 ORDER BY day
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             rows = cursor.fetchall()
 
         if not rows:
@@ -168,8 +183,7 @@ class SpendingPredictor:
             smoothed.append(round(s, 2))
 
         historical = [
-            {"date": d, "actual": a, "smoothed": s}
-            for d, a, s in zip(dates, amounts, smoothed)
+            {"date": d, "actual": a, "smoothed": s} for d, a, s in zip(dates, amounts, smoothed)
         ]
 
         predicted_next = round(smoothed[-1], 2)
@@ -222,33 +236,41 @@ class SpendingPredictor:
 
         with self._db() as (conn, cursor):
             # 今日消費
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COALESCE(SUM(amount_twd), 0)
                 FROM transactions
                 WHERE trip_id = ? AND DATE(txn_datetime) = DATE('now')
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             today_spent = cursor.fetchone()[0]
 
             # 旅行總消費與天數（計算日均）
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COALESCE(SUM(amount_twd), 0),
                        COUNT(DISTINCT DATE(txn_datetime))
                 FROM transactions WHERE trip_id = ?
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             total_spent, days_elapsed = cursor.fetchone()
 
         if days_elapsed > 0 and today_spent > 0:
             daily_avg = total_spent / days_elapsed
             if daily_avg > 0 and today_spent > threshold * daily_avg:
-                alerts.append({
-                    "alert_type": "daily_overspend",
-                    "severity": "warning",
-                    "title": "今日消費超標",
-                    "message": (
-                        f"今日消費 NT${today_spent:,.0f} 超過日均消費 "
-                        f"NT${daily_avg:,.0f} 的 {threshold:.0%}"
-                    ),
-                })
+                alerts.append(
+                    {
+                        "alert_type": "daily_overspend",
+                        "severity": "warning",
+                        "title": "今日消費超標",
+                        "message": (
+                            f"今日消費 NT${today_spent:,.0f} 超過日均消費 "
+                            f"NT${daily_avg:,.0f} 的 {threshold:.0%}"
+                        ),
+                    }
+                )
 
         return alerts
 
@@ -279,17 +301,23 @@ class SpendingPredictor:
         if exceed.get("will_exceed"):
             days = exceed.get("days_until_exceed")
             msg = (
-                f"依目前消費速率，預計在第 {exceed.get('exceed_day')} 天超出預算，"
-                f"剩餘 {days} 天需特別注意支出"
-            ) if days is not None else "預計將超出旅行預算"
-            generated.append({
-                "trip_id": trip_id,
-                "user_id": user_id,
-                "alert_type": "prediction",
-                "severity": "warning" if days and days > 1 else "critical",
-                "title": "預算超支預警",
-                "message": msg,
-            })
+                (
+                    f"依目前消費速率，預計在第 {exceed.get('exceed_day')} 天超出預算，"
+                    f"剩餘 {days} 天需特別注意支出"
+                )
+                if days is not None
+                else "預計將超出旅行預算"
+            )
+            generated.append(
+                {
+                    "trip_id": trip_id,
+                    "user_id": user_id,
+                    "alert_type": "prediction",
+                    "severity": "warning" if days and days > 1 else "critical",
+                    "title": "預算超支預警",
+                    "message": msg,
+                }
+            )
 
         # 2. 今日超支檢查
         overspend_alerts = self.check_overspend(trip_id, user_id)
@@ -301,32 +329,41 @@ class SpendingPredictor:
             currency = trip.get("currency_code", "JPY")
             if currency != "TWD":
                 from src.fx_strategy import FxStrategy
+
                 fx = FxStrategy(self.db_path)
                 advice = fx.advise(currency, 10000)
                 if advice.get("recommendation") == "wait":
-                    generated.append({
-                        "trip_id": trip_id,
-                        "user_id": user_id,
-                        "alert_type": "rate_spike",
-                        "severity": "info",
-                        "title": "匯率偏低提醒",
-                        "message": advice.get("message", "目前匯率偏低，建議等待更佳換匯時機"),
-                    })
+                    generated.append(
+                        {
+                            "trip_id": trip_id,
+                            "user_id": user_id,
+                            "alert_type": "rate_spike",
+                            "severity": "info",
+                            "title": "匯率偏低提醒",
+                            "message": advice.get("message", "目前匯率偏低，建議等待更佳換匯時機"),
+                        }
+                    )
         except Exception:
             pass
 
         # 寫入資料庫
         with self._db() as (conn, cursor):
             for alert in generated:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO spending_alerts
                     (trip_id, user_id, alert_type, severity, title, message)
                     VALUES (?, ?, ?, ?, ?, ?)
-                """, (
-                    alert["trip_id"], alert["user_id"],
-                    alert["alert_type"], alert["severity"],
-                    alert["title"], alert["message"],
-                ))
+                """,
+                    (
+                        alert["trip_id"],
+                        alert["user_id"],
+                        alert["alert_type"],
+                        alert["severity"],
+                        alert["title"],
+                        alert["message"],
+                    ),
+                )
                 alert["alert_id"] = cursor.lastrowid
 
         return generated
@@ -369,8 +406,17 @@ class SpendingPredictor:
             cursor.execute(query, params)
             rows = cursor.fetchall()
 
-        keys = ["alert_id", "trip_id", "user_id", "alert_type", "severity",
-                "title", "message", "is_read", "created_at"]
+        keys = [
+            "alert_id",
+            "trip_id",
+            "user_id",
+            "alert_type",
+            "severity",
+            "title",
+            "message",
+            "is_read",
+            "created_at",
+        ]
         return [dict(zip(keys, r)) for r in rows]
 
     def mark_read(self, alert_id: int) -> None:
@@ -384,7 +430,4 @@ class SpendingPredictor:
             raise ValueError(f"alert_id 必須為正整數，收到: {alert_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute(
-                "UPDATE spending_alerts SET is_read = 1 WHERE alert_id = ?",
-                (alert_id,)
-            )
+            cursor.execute("UPDATE spending_alerts SET is_read = 1 WHERE alert_id = ?", (alert_id,))

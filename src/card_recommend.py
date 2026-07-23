@@ -90,10 +90,13 @@ class CardRecommendService:
             raise ValueError(f"card_id 必須為正整數，收到: {card_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT card_id, card_name, issuer, card_type, annual_fee, overseas_fee_pct
                 FROM credit_cards WHERE card_id = ?
-            """, (card_id,))
+            """,
+                (card_id,),
+            )
             row = cursor.fetchone()
 
         if not row:
@@ -111,16 +114,26 @@ class CardRecommendService:
 
     def _get_rewards(self, card_id: int) -> list:
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT reward_id, category, region, reward_type, reward_rate,
                        reward_cap, min_spend
                 FROM card_rewards WHERE card_id = ?
                 ORDER BY reward_rate DESC
-            """, (card_id,))
+            """,
+                (card_id,),
+            )
             rows = cursor.fetchall()
 
-        keys = ["reward_id", "category", "region", "reward_type",
-                "reward_rate", "reward_cap", "min_spend"]
+        keys = [
+            "reward_id",
+            "category",
+            "region",
+            "reward_type",
+            "reward_rate",
+            "reward_cap",
+            "min_spend",
+        ]
         return [dict(zip(keys, r)) for r in rows]
 
     # ============================================================
@@ -161,7 +174,11 @@ class CardRecommendService:
         best_priority = -1
 
         for rule in rewards:
-            cat_match = (rule["category"] == category or rule["category"] == "all" or rule["category"] == "海外")
+            cat_match = (
+                rule["category"] == category
+                or rule["category"] == "all"
+                or rule["category"] == "海外"
+            )
             if not cat_match:
                 continue
 
@@ -193,8 +210,7 @@ class CardRecommendService:
         # 取得海外手續費
         with self._db() as (conn, cursor):
             cursor.execute(
-                "SELECT overseas_fee_pct FROM credit_cards WHERE card_id = ?",
-                (card_id,)
+                "SELECT overseas_fee_pct FROM credit_cards WHERE card_id = ?", (card_id,)
             )
             row = cursor.fetchone()
         overseas_fee_pct = row[0] if row else 1.5
@@ -236,11 +252,14 @@ class CardRecommendService:
                 raise ValueError(f"找不到 trip_id={trip_id}")
             destination = row[0]
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT category, SUM(amount_twd) FROM transactions
                 WHERE trip_id = ?
                 GROUP BY category
-            """, (trip_id,))
+            """,
+                (trip_id,),
+            )
             category_spending = cursor.fetchall()
 
         if not category_spending:
@@ -264,15 +283,17 @@ class CardRecommendService:
                     top_category = cat
 
             net_benefit = round(total_reward - total_fee, 2)
-            results.append({
-                "card_id": card["card_id"],
-                "card_name": card["card_name"],
-                "issuer": card["issuer"],
-                "total_reward": round(total_reward, 2),
-                "total_fee": round(total_fee, 2),
-                "net_benefit": net_benefit,
-                "top_category": top_category,
-            })
+            results.append(
+                {
+                    "card_id": card["card_id"],
+                    "card_name": card["card_name"],
+                    "issuer": card["issuer"],
+                    "total_reward": round(total_reward, 2),
+                    "total_fee": round(total_fee, 2),
+                    "net_benefit": net_benefit,
+                    "top_category": top_category,
+                }
+            )
 
         results.sort(key=lambda x: x["net_benefit"], reverse=True)
         return results
@@ -281,9 +302,7 @@ class CardRecommendService:
     #  依類別推薦
     # ============================================================
 
-    def recommend_by_category(
-        self, category: str, amount: float, region: str = "all"
-    ) -> list:
+    def recommend_by_category(self, category: str, amount: float, region: str = "all") -> list:
         """
         依單一消費類別推薦最佳信用卡
 
@@ -305,12 +324,14 @@ class CardRecommendService:
 
         for card in cards:
             calc = self.calculate_reward(card["card_id"], float(amount), category, region)
-            results.append({
-                "card_id": card["card_id"],
-                "card_name": card["card_name"],
-                "issuer": card["issuer"],
-                **calc,
-            })
+            results.append(
+                {
+                    "card_id": card["card_id"],
+                    "card_name": card["card_name"],
+                    "issuer": card["issuer"],
+                    **calc,
+                }
+            )
 
         results.sort(key=lambda x: x["net_benefit"], reverse=True)
         return results
@@ -354,6 +375,7 @@ class CardRecommendService:
 #  種子資料：台灣常見旅遊信用卡
 # ============================================================
 
+
 def seed_cards(db_path: str = None) -> None:
     """
     寫入台灣常見旅遊信用卡示範資料
@@ -373,7 +395,10 @@ def seed_cards(db_path: str = None) -> None:
         ("聯邦 賴點卡", "聯邦銀行", "visa", 0, 1.5),
     ]
 
-    rewards_data = {
+    rewards_data: dict[
+        str,
+        list[tuple[str, str, str, float, float | None, int]],
+    ] = {
         "玉山 Pi 錢包卡": [
             ("海外", "all", "cashback", 2.8, None, 0),
         ],
@@ -410,19 +435,27 @@ def seed_cards(db_path: str = None) -> None:
             # 卡片已存在，跳過（冪等）
             continue
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO credit_cards
             (card_name, issuer, card_type, annual_fee, overseas_fee_pct, is_active)
             VALUES (?, ?, ?, ?, ?, 1)
-        """, (card_name, issuer, card_type, annual_fee, overseas_fee_pct))
+        """,
+            (card_name, issuer, card_type, annual_fee, overseas_fee_pct),
+        )
         card_id = cursor.lastrowid
 
-        for category, region, reward_type, reward_rate, reward_cap, min_spend in rewards_data.get(card_name, []):
-            cursor.execute("""
+        for category, region, reward_type, reward_rate, reward_cap, min_spend in rewards_data.get(
+            card_name, []
+        ):
+            cursor.execute(
+                """
                 INSERT INTO card_rewards
                 (card_id, category, region, reward_type, reward_rate, reward_cap, min_spend)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (card_id, category, region, reward_type, reward_rate, reward_cap, min_spend))
+            """,
+                (card_id, category, region, reward_type, reward_rate, reward_cap, min_spend),
+            )
 
     conn.commit()
     conn.close()

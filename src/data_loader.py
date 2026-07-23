@@ -22,6 +22,7 @@ SCHEMA_PATH = os.path.join(BASE_DIR, "database", "schema.sql")
 
 # === 工具函式 ===
 
+
 def clean_number(value):
     if pd.isna(value):
         return None
@@ -44,6 +45,7 @@ def roc_to_ad(roc_year):
 
 # === 核心載入函式 ===
 
+
 def load_outbound_stats(filepath=None):
     """
     載入並清洗「歷年國人出國旅遊重要指標統計表」
@@ -61,7 +63,9 @@ def load_outbound_stats(filepath=None):
 
     # 過濾掉註記行（年度欄位為空的行）
     df = df[df["年度"].notna()].copy()
-    df = df[df["年度"].apply(lambda x: pd.notna(x) and str(x).replace(".", "").strip().isdigit())].copy()
+    df = df[
+        df["年度"].apply(lambda x: pd.notna(x) and str(x).replace(".", "").strip().isdigit())
+    ].copy()
 
     # 民國年轉西元年
     df["year"] = df["年度"].apply(roc_to_ad)
@@ -71,19 +75,25 @@ def load_outbound_stats(filepath=None):
     df["avg_stay_nights"] = df["平均停留夜數"].apply(clean_number)
     df["avg_spending_twd"] = df["每人每次平均消費支出_新台幣_元"].apply(clean_number)
     df["avg_spending_usd"] = df["每人每次平均消費支出_美金_元"].apply(clean_number)
-    df["total_spending_twd_100m"] = df["出國旅遊消費總支出_含國際機票_新台幣_億元"].apply(clean_number)
-    df["total_spending_usd_100m"] = df["出國旅遊消費總支出_含國際機票_美金_億元"].apply(clean_number)
+    df["total_spending_twd_100m"] = df["出國旅遊消費總支出_含國際機票_新台幣_億元"].apply(
+        clean_number
+    )
+    df["total_spending_usd_100m"] = df["出國旅遊消費總支出_含國際機票_美金_億元"].apply(
+        clean_number
+    )
 
     # 只保留需要的欄位
-    result = df[[
-        "year",
-        "total_outbound_trips",
-        "avg_stay_nights",
-        "avg_spending_twd",
-        "avg_spending_usd",
-        "total_spending_twd_100m",
-        "total_spending_usd_100m"
-    ]].copy()
+    result = df[
+        [
+            "year",
+            "total_outbound_trips",
+            "avg_stay_nights",
+            "avg_spending_twd",
+            "avg_spending_usd",
+            "total_spending_twd_100m",
+            "total_spending_usd_100m",
+        ]
+    ].copy()
 
     # 轉換型別
     result["year"] = result["year"].astype(int)
@@ -104,6 +114,7 @@ def save_processed_csv(df, filename="cleaned_outbound_stats.csv"):
 
 
 # === 資料庫操作 ===
+
 
 def init_database():
     """
@@ -129,21 +140,34 @@ def load_to_database(df):
         cursor = conn.cursor()
         for _, row in df.iterrows():
             try:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT OR REPLACE INTO gov_outbound_stats
                     (year, total_outbound_trips, avg_stay_nights,
                      avg_spending_twd, avg_spending_usd,
                      total_spending_twd_100m, total_spending_usd_100m)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    int(row["year"]),
-                    int(row["total_outbound_trips"]) if pd.notna(row["total_outbound_trips"]) else None,
-                    float(row["avg_stay_nights"]) if pd.notna(row["avg_stay_nights"]) else None,
-                    float(row["avg_spending_twd"]) if pd.notna(row["avg_spending_twd"]) else None,
-                    float(row["avg_spending_usd"]) if pd.notna(row["avg_spending_usd"]) else None,
-                    float(row["total_spending_twd_100m"]) if pd.notna(row["total_spending_twd_100m"]) else None,
-                    float(row["total_spending_usd_100m"]) if pd.notna(row["total_spending_usd_100m"]) else None,
-                ))
+                """,
+                    (
+                        int(row["year"]),
+                        int(row["total_outbound_trips"])
+                        if pd.notna(row["total_outbound_trips"])
+                        else None,
+                        float(row["avg_stay_nights"]) if pd.notna(row["avg_stay_nights"]) else None,
+                        float(row["avg_spending_twd"])
+                        if pd.notna(row["avg_spending_twd"])
+                        else None,
+                        float(row["avg_spending_usd"])
+                        if pd.notna(row["avg_spending_usd"])
+                        else None,
+                        float(row["total_spending_twd_100m"])
+                        if pd.notna(row["total_spending_twd_100m"])
+                        else None,
+                        float(row["total_spending_usd_100m"])
+                        if pd.notna(row["total_spending_usd_100m"])
+                        else None,
+                    ),
+                )
                 inserted += 1
             except sqlite3.Error as e:
                 print(f"跳過 {row['year']}: {e}")

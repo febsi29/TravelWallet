@@ -43,8 +43,17 @@ class TestGeneratePaymentLink:
     def test_link_has_all_fields(self, db_path):
         svc = PaymentService(db_path)
         result = svc.generate_payment_link(settlement_id=1, provider="line_pay")
-        for field in ["link_id", "settlement_id", "provider", "payment_url",
-                      "amount", "currency_code", "status", "from_name", "to_name"]:
+        for field in [
+            "link_id",
+            "settlement_id",
+            "provider",
+            "payment_url",
+            "amount",
+            "currency_code",
+            "status",
+            "from_name",
+            "to_name",
+        ]:
             assert field in result
 
 

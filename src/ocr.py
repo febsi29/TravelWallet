@@ -18,11 +18,17 @@ ocr.py - 電子收據 OCR 掃描模組
   若未安裝，模組會自動使用模擬文字進行示範
 """
 
+from __future__ import annotations
+
 import sqlite3
 import os
 import re
 from contextlib import contextmanager
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.ai_agent import ReceiptVisionParser
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
@@ -30,27 +36,91 @@ DB_PATH = os.path.join(BASE_DIR, "database", "travel_wallet.db")
 # 關鍵字分類規則
 CATEGORY_KEYWORDS = {
     "餐飲": [
-        "restaurant", "cafe", "coffee", "food", "ramen", "sushi", "burger",
-        "mcdonald", "pizza", "noodle", "breakfast", "lunch", "dinner",
-        "餐", "食", "拉麵", "壽司", "咖啡", "飲食", "餐廳", "小吃",
+        "restaurant",
+        "cafe",
+        "coffee",
+        "food",
+        "ramen",
+        "sushi",
+        "burger",
+        "mcdonald",
+        "pizza",
+        "noodle",
+        "breakfast",
+        "lunch",
+        "dinner",
+        "餐",
+        "食",
+        "拉麵",
+        "壽司",
+        "咖啡",
+        "飲食",
+        "餐廳",
+        "小吃",
     ],
     "交通": [
-        "train", "taxi", "bus", "metro", "subway", "station", "airport",
-        "flight", "ticket", "transport", "rail",
-        "電車", "地鐵", "計程車", "公車", "機場", "新幹線", "巴士",
+        "train",
+        "taxi",
+        "bus",
+        "metro",
+        "subway",
+        "station",
+        "airport",
+        "flight",
+        "ticket",
+        "transport",
+        "rail",
+        "電車",
+        "地鐵",
+        "計程車",
+        "公車",
+        "機場",
+        "新幹線",
+        "巴士",
     ],
     "住宿": [
-        "hotel", "inn", "hostel", "airbnb", "resort", "motel",
-        "旅館", "飯店", "民宿", "住宿",
+        "hotel",
+        "inn",
+        "hostel",
+        "airbnb",
+        "resort",
+        "motel",
+        "旅館",
+        "飯店",
+        "民宿",
+        "住宿",
     ],
     "購物": [
-        "shop", "store", "mall", "market", "pharmacy", "cosmetic", "drug",
-        "duty free", "mart", "supermarket",
-        "藥妝", "便利", "超市", "購物", "百貨", "免稅",
+        "shop",
+        "store",
+        "mall",
+        "market",
+        "pharmacy",
+        "cosmetic",
+        "drug",
+        "duty free",
+        "mart",
+        "supermarket",
+        "藥妝",
+        "便利",
+        "超市",
+        "購物",
+        "百貨",
+        "免稅",
     ],
     "娛樂": [
-        "museum", "park", "theme", "cinema", "movie", "ticket", "show",
-        "博物館", "公園", "遊樂", "電影", "展覽",
+        "museum",
+        "park",
+        "theme",
+        "cinema",
+        "movie",
+        "ticket",
+        "show",
+        "博物館",
+        "公園",
+        "遊樂",
+        "電影",
+        "展覽",
     ],
 }
 
@@ -67,7 +137,7 @@ class ReceiptOCR:
         """
         self.db_path = db_path or DB_PATH
         self.engine = engine
-        self._vision_parser = None  # 懶載入
+        self._vision_parser: ReceiptVisionParser | None = None  # 懶載入
 
     @contextmanager
     def _db(self):
@@ -85,12 +155,13 @@ class ReceiptOCR:
     #  OCR 掃描
     # ============================================================
 
-    def _get_vision_parser(self):
+    def _get_vision_parser(self) -> ReceiptVisionParser | None:
         """懶載入 ReceiptVisionParser，無 API Key 時返回 None。"""
         if self._vision_parser is not None:
             return self._vision_parser
         try:
             from src.ai_agent import AIAgentService
+
             svc = AIAgentService(self.db_path)
             if svc.is_available:
                 self._vision_parser = svc.vision_parser
@@ -123,6 +194,7 @@ class ReceiptOCR:
             raise ValueError(f"不支援的圖片格式 '{ext}'，僅允許：{', '.join(_ALLOWED_EXTS)}")
         # 確保路徑在系統暫存目錄或允許的目錄內
         import tempfile
+
         abs_path = os.path.realpath(image_path)
         tmp_dir = os.path.realpath(tempfile.gettempdir())
         if not abs_path.startswith(tmp_dir + os.sep) and abs_path != tmp_dir:
@@ -144,12 +216,14 @@ class ReceiptOCR:
             merchant = self._extract_merchant(raw_text)
             date_str = self._extract_date(raw_text)
             category = self._guess_category(raw_text, merchant or "")
-            fields_extracted = sum([
-                amount is not None,
-                currency is not None,
-                merchant is not None,
-                date_str is not None,
-            ])
+            fields_extracted = sum(
+                [
+                    amount is not None,
+                    currency is not None,
+                    merchant is not None,
+                    date_str is not None,
+                ]
+            )
             confidence = round(fields_extracted / 4, 2)
 
         result = {
@@ -162,12 +236,14 @@ class ReceiptOCR:
             "confidence": confidence,
         }
 
-        receipt_id = self.save_receipt({
-            **result,
-            "user_id": user_id,
-            "trip_id": trip_id,
-            "image_path": image_path,
-        })
+        receipt_id = self.save_receipt(
+            {
+                **result,
+                "user_id": user_id,
+                "trip_id": trip_id,
+                "image_path": image_path,
+            }
+        )
         result["receipt_id"] = receipt_id
         return result
 
@@ -196,6 +272,7 @@ class ReceiptOCR:
             try:
                 from PIL import Image
                 import pytesseract
+
                 img = Image.open(image_path)
                 text = pytesseract.image_to_string(img, lang="jpn+chi_tra+eng")
                 return text.strip()
@@ -322,29 +399,30 @@ class ReceiptOCR:
             int: 新建立的 receipt_id
         """
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO ocr_receipts
                 (user_id, trip_id, image_path, raw_text, extracted_amount,
                  extracted_currency, extracted_merchant, extracted_category,
                  extracted_date, confidence, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
-            """, (
-                data["user_id"],
-                data.get("trip_id"),
-                data["image_path"],
-                data.get("raw_text"),
-                data.get("extracted_amount"),
-                data.get("extracted_currency"),
-                data.get("extracted_merchant"),
-                data.get("extracted_category"),
-                data.get("extracted_date"),
-                data.get("confidence"),
-            ))
+            """,
+                (
+                    data["user_id"],
+                    data.get("trip_id"),
+                    data["image_path"],
+                    data.get("raw_text"),
+                    data.get("extracted_amount"),
+                    data.get("extracted_currency"),
+                    data.get("extracted_merchant"),
+                    data.get("extracted_category"),
+                    data.get("extracted_date"),
+                    data.get("confidence"),
+                ),
+            )
             return cursor.lastrowid
 
-    def confirm_and_create_txn(
-        self, receipt_id: int, corrections: dict = None
-    ) -> dict:
+    def confirm_and_create_txn(self, receipt_id: int, corrections: dict = None) -> dict:
         """
         確認 OCR 結果並建立對應的交易紀錄
 
@@ -360,19 +438,31 @@ class ReceiptOCR:
 
         # 取得收據資料
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT receipt_id, user_id, trip_id, extracted_amount,
                        extracted_currency, extracted_merchant, extracted_category,
                        extracted_date, status
                 FROM ocr_receipts WHERE receipt_id = ?
-            """, (receipt_id,))
+            """,
+                (receipt_id,),
+            )
             row = cursor.fetchone()
 
         if not row:
             raise ValueError(f"找不到 receipt_id={receipt_id}")
 
-        keys = ["receipt_id", "user_id", "trip_id", "amount", "currency",
-                "merchant", "category", "date", "status"]
+        keys = [
+            "receipt_id",
+            "user_id",
+            "trip_id",
+            "amount",
+            "currency",
+            "merchant",
+            "category",
+            "date",
+            "status",
+        ]
         receipt = dict(zip(keys, row))
 
         if receipt["status"] != "pending":
@@ -396,6 +486,7 @@ class ReceiptOCR:
         # 取得匯率
         try:
             from src.currency import CurrencyManager
+
             cm = CurrencyManager(self.db_path)
             rate = cm.get_rate(currency)
             amount_twd = round(amount / rate) if rate > 0 else round(amount)
@@ -404,23 +495,35 @@ class ReceiptOCR:
             amount_twd = round(amount)
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO transactions
                 (trip_id, paid_by, amount, currency_code, amount_twd, exchange_rate,
                  category, description, payment_method, txn_datetime, split_type)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'cash', ?, 'none')
-            """, (
-                trip_id, user_id, float(amount), currency,
-                float(amount_twd), float(rate),
-                category, description, txn_datetime,
-            ))
+            """,
+                (
+                    trip_id,
+                    user_id,
+                    float(amount),
+                    currency,
+                    float(amount_twd),
+                    float(rate),
+                    category,
+                    description,
+                    txn_datetime,
+                ),
+            )
             txn_id = cursor.lastrowid
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE ocr_receipts
                 SET status = 'confirmed', linked_txn_id = ?
                 WHERE receipt_id = ?
-            """, (txn_id, receipt_id))
+            """,
+                (txn_id, receipt_id),
+            )
 
         receipt["linked_txn_id"] = txn_id
         return {"receipt": receipt, "transaction_id": txn_id}
@@ -459,9 +562,21 @@ class ReceiptOCR:
             cursor.execute(query, params)
             rows = cursor.fetchall()
 
-        keys = ["receipt_id", "user_id", "trip_id", "image_path", "extracted_amount",
-                "extracted_currency", "extracted_merchant", "extracted_category",
-                "extracted_date", "confidence", "status", "linked_txn_id", "created_at"]
+        keys = [
+            "receipt_id",
+            "user_id",
+            "trip_id",
+            "image_path",
+            "extracted_amount",
+            "extracted_currency",
+            "extracted_merchant",
+            "extracted_category",
+            "extracted_date",
+            "confidence",
+            "status",
+            "linked_txn_id",
+            "created_at",
+        ]
         return [dict(zip(keys, r)) for r in rows]
 
     def reject_receipt(self, receipt_id: int) -> None:
@@ -476,6 +591,5 @@ class ReceiptOCR:
 
         with self._db() as (conn, cursor):
             cursor.execute(
-                "UPDATE ocr_receipts SET status = 'rejected' WHERE receipt_id = ?",
-                (receipt_id,)
+                "UPDATE ocr_receipts SET status = 'rejected' WHERE receipt_id = ?", (receipt_id,)
             )

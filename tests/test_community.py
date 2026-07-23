@@ -59,6 +59,7 @@ class TestGetLeaderboard:
         svc = CommunityService(db_path)
         # 新增多筆不同消費
         import sqlite3
+
         conn = sqlite3.connect(db_path)
         conn.execute("""
             INSERT OR REPLACE INTO community_stats

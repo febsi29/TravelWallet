@@ -1,6 +1,7 @@
 """
 TravelWallet - Main Streamlit App
 """
+
 import streamlit as st
 import sqlite3
 import os
@@ -11,6 +12,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from dotenv import load_dotenv
+
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 from config.settings import DB_PATH
@@ -41,7 +43,8 @@ st.set_page_config(
 )
 
 # --- Global CSS ---
-st.markdown("""
+st.markdown(
+    """
 <style>
     .main-header {
         font-size: 2.8rem;
@@ -74,7 +77,9 @@ st.markdown("""
         color: #0F172A;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
 # --- Data Loading ---
@@ -82,7 +87,9 @@ st.markdown("""
 def load_trip_list():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT trip_id, trip_name, destination, start_date, end_date, status FROM trips ORDER BY start_date DESC")
+    cursor.execute(
+        "SELECT trip_id, trip_name, destination, start_date, end_date, status FROM trips ORDER BY start_date DESC"
+    )
     trips = cursor.fetchall()
     conn.close()
     return trips
@@ -93,57 +100,81 @@ def load_dashboard_data(trip_id):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT trip_name, destination, currency_code, start_date, end_date, total_budget,
                julianday(end_date) - julianday(start_date) + 1
         FROM trips WHERE trip_id = ?
-    """, (trip_id,))
+    """,
+        (trip_id,),
+    )
     trip = cursor.fetchone()
 
     cursor.execute("SELECT COUNT(*) FROM trip_members WHERE trip_id = ?", (trip_id,))
     members = cursor.fetchone()[0]
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT COUNT(*), COALESCE(SUM(amount_twd), 0), COALESCE(SUM(amount), 0)
         FROM transactions WHERE trip_id = ?
-    """, (trip_id,))
+    """,
+        (trip_id,),
+    )
     txn_count, total_twd, total_original = cursor.fetchone()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT COUNT(*), COALESCE(SUM(amount_twd), 0)
         FROM settlements WHERE trip_id = ? AND status = 'pending'
-    """, (trip_id,))
+    """,
+        (trip_id,),
+    )
     pending_count, pending_twd = cursor.fetchone()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT category, SUM(amount_twd) FROM transactions
         WHERE trip_id = ? GROUP BY category ORDER BY SUM(amount_twd) DESC
-    """, (trip_id,))
+    """,
+        (trip_id,),
+    )
     categories = cursor.fetchall()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT DATE(txn_datetime), SUM(amount_twd) FROM transactions
         WHERE trip_id = ? GROUP BY DATE(txn_datetime) ORDER BY DATE(txn_datetime)
-    """, (trip_id,))
+    """,
+        (trip_id,),
+    )
     daily = cursor.fetchall()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT t.txn_datetime, t.amount, t.currency_code, t.amount_twd,
                t.category, t.description, u.display_name, t.is_anomaly
         FROM transactions t
         JOIN users u ON t.paid_by = u.user_id
         WHERE t.trip_id = ?
         ORDER BY t.txn_datetime DESC LIMIT 10
-    """, (trip_id,))
+    """,
+        (trip_id,),
+    )
     recent = cursor.fetchall()
 
     conn.close()
 
     return {
-        "trip": trip, "members": members,
-        "txn_count": txn_count, "total_twd": total_twd, "total_original": total_original,
-        "pending_count": pending_count, "pending_twd": pending_twd,
-        "categories": categories, "daily": daily, "recent": recent,
+        "trip": trip,
+        "members": members,
+        "txn_count": txn_count,
+        "total_twd": total_twd,
+        "total_original": total_original,
+        "pending_count": pending_count,
+        "pending_twd": pending_twd,
+        "categories": categories,
+        "daily": daily,
+        "recent": recent,
     }
 
 
@@ -160,7 +191,9 @@ def dashboard():
 
     st.sidebar.markdown("### 選擇旅行")
     trip_options = {f"{t[1]} ({t[3][:7]})": t[0] for t in trips}
-    selected_trip_label = st.sidebar.selectbox("旅行", list(trip_options.keys()), label_visibility="collapsed")
+    selected_trip_label = st.sidebar.selectbox(
+        "旅行", list(trip_options.keys()), label_visibility="collapsed"
+    )
     selected_trip_id = trip_options[selected_trip_label]
 
     data = load_dashboard_data(selected_trip_id)
@@ -179,9 +212,16 @@ def dashboard():
         st.metric("每人花費", f"NT${per_person:,}", help="總花費 / 人數")
     with col3:
         delta_color = "normal" if remaining >= 0 else "inverse"
-        st.metric("預算剩餘", f"NT${remaining:,.0f}", delta=f"預算 NT${budget:,.0f}", delta_color=delta_color)
+        st.metric(
+            "預算剩餘",
+            f"NT${remaining:,.0f}",
+            delta=f"預算 NT${budget:,.0f}",
+            delta_color=delta_color,
+        )
     with col4:
-        st.metric("未結清分帳", f"{data['pending_count']} 筆", delta=f"NT${data['pending_twd']:,.0f}")
+        st.metric(
+            "未結清分帳", f"{data['pending_count']} 筆", delta=f"NT${data['pending_twd']:,.0f}"
+        )
 
     st.markdown("---")
     info_cols = st.columns(5)
@@ -198,11 +238,13 @@ def dashboard():
         st.markdown("#### 消費類別分佈")
         if data["categories"]:
             import plotly.express as px
+
             cat_names = [c[0] for c in data["categories"]]
             cat_values = [c[1] for c in data["categories"]]
             colors = ["#1D4ED8", "#2563EB", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE"]
             fig = px.pie(
-                names=cat_names, values=cat_values,
+                names=cat_names,
+                values=cat_values,
                 color_discrete_sequence=colors,
                 hole=0.4,
             )
@@ -214,19 +256,25 @@ def dashboard():
         st.markdown("#### 每日消費趨勢")
         if data["daily"]:
             import plotly.graph_objects as go
-            days = [f"第 {i+1} 天" for i in range(len(data["daily"]))]
+
+            days = [f"第 {i + 1} 天" for i in range(len(data["daily"]))]
             amounts = [d[1] for d in data["daily"]]
             fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=days, y=amounts,
-                marker_color="#2563EB",
-                text=[f"NT${a:,.0f}" for a in amounts],
-                textposition="outside",
-            ))
+            fig.add_trace(
+                go.Bar(
+                    x=days,
+                    y=amounts,
+                    marker_color="#2563EB",
+                    text=[f"NT${a:,.0f}" for a in amounts],
+                    textposition="outside",
+                )
+            )
             if budget > 0 and data["members"] > 0:
                 daily_budget = budget / int(trip[6])
                 fig.add_hline(
-                    y=daily_budget, line_dash="dash", line_color="#DC2626",
+                    y=daily_budget,
+                    line_dash="dash",
+                    line_color="#DC2626",
                     annotation_text=f"每人每日預算 NT${daily_budget:,.0f}",
                 )
             fig.update_layout(
@@ -241,9 +289,11 @@ def dashboard():
     st.markdown("#### 最近交易紀錄")
     if data["recent"]:
         import pandas as pd
-        df = pd.DataFrame(data["recent"], columns=[
-            "時間", "金額(原幣)", "幣別", "金額(TWD)", "類別", "說明", "付款人", "異常"
-        ])
+
+        df = pd.DataFrame(
+            data["recent"],
+            columns=["時間", "金額(原幣)", "幣別", "金額(TWD)", "類別", "說明", "付款人", "異常"],
+        )
         df["時間"] = df["時間"].str[:16]
         df["金額(原幣)"] = df["金額(原幣)"].apply(lambda x: f"{x:,.0f}")
         df["金額(TWD)"] = df["金額(TWD)"].apply(lambda x: f"NT${x:,.0f}")
@@ -294,14 +344,16 @@ def render_user_selector() -> None:
 render_user_selector()
 
 # --- Navigation ---
-pg = st.navigation([
-    st.Page(dashboard, title="儀表板"),
-    st.Page("pages/2_Transactions.py", title="交易紀錄"),
-    st.Page("pages/3_SplitBill.py", title="分帳中心"),
-    st.Page("pages/4_TripPlanner.py", title="行程規劃"),
-    st.Page("pages/5_Exchange.py", title="匯率查詢"),
-    st.Page("pages/6_Analytics.py", title="消費分析"),
-    st.Page("pages/7_Alerts.py", title="異常偵測"),
-    st.Page("pages/8_AI_Assistant.py", title="AI 助手"),
-])
+pg = st.navigation(
+    [
+        st.Page(dashboard, title="儀表板"),
+        st.Page("pages/2_Transactions.py", title="交易紀錄"),
+        st.Page("pages/3_SplitBill.py", title="分帳中心"),
+        st.Page("pages/4_TripPlanner.py", title="行程規劃"),
+        st.Page("pages/5_Exchange.py", title="匯率查詢"),
+        st.Page("pages/6_Analytics.py", title="消費分析"),
+        st.Page("pages/7_Alerts.py", title="異常偵測"),
+        st.Page("pages/8_AI_Assistant.py", title="AI 助手"),
+    ]
+)
 pg.run()

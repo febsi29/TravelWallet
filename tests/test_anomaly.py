@@ -14,8 +14,8 @@ class TestDetectZscore:
         detector = AnomalyDetector(db_path)
         results = detector.detect_zscore(1)
         for r in results:
-            assert "txn_id"           in r
-            assert "zscore"           in r
+            assert "txn_id" in r
+            assert "zscore" in r
             assert "is_anomaly_zscore" in r
 
     def test_detects_large_purchase_as_anomaly(self, db_path):
@@ -57,10 +57,10 @@ class TestDetectIqr:
         detector = AnomalyDetector(db_path)
         results = detector.detect_iqr(1)
         for r in results:
-            assert "txn_id"        in r
+            assert "txn_id" in r
             assert "is_anomaly_iqr" in r
-            assert "iqr_bounds"    in r
-            assert "iqr_reason"    in r
+            assert "iqr_bounds" in r
+            assert "iqr_reason" in r
 
     def test_iqr_bounds_structure(self, db_path):
         detector = AnomalyDetector(db_path)
@@ -69,8 +69,8 @@ class TestDetectIqr:
             bounds = results[0]["iqr_bounds"]
             assert "lower" in bounds
             assert "upper" in bounds
-            assert "q1"    in bounds
-            assert "q3"    in bounds
+            assert "q1" in bounds
+            assert "q3" in bounds
 
     def test_invalid_multiplier_raises(self, db_path):
         detector = AnomalyDetector(db_path)
@@ -95,11 +95,11 @@ class TestDetectAll:
         detector = AnomalyDetector(db_path)
         results = detector.detect_all(1)
         for r in results:
-            assert "txn_id"            in r
-            assert "flags"             in r
-            assert "is_anomaly"        in r
+            assert "txn_id" in r
+            assert "flags" in r
+            assert "is_anomaly" in r
             assert "is_anomaly_zscore" in r
-            assert "is_anomaly_iqr"    in r
+            assert "is_anomaly_iqr" in r
 
     def test_flags_range(self, db_path):
         """flags 必須在 0~3 之間"""
@@ -125,6 +125,7 @@ class TestDetectAll:
     def test_updates_database_flags(self, db_path):
         """detect_all 應更新 transactions 的 is_anomaly 欄位"""
         import sqlite3
+
         detector = AnomalyDetector(db_path)
         detector.detect_all(1)
         conn = sqlite3.connect(db_path)
@@ -141,9 +142,9 @@ class TestGetAnomalySummary:
         detector.detect_all(1)
         summary = detector.get_anomaly_summary(1)
         assert "total_transactions" in summary
-        assert "anomaly_count"      in summary
-        assert "anomaly_rate"       in summary
-        assert "anomalies"          in summary
+        assert "anomaly_count" in summary
+        assert "anomaly_rate" in summary
+        assert "anomalies" in summary
 
     def test_anomaly_rate_in_valid_range(self, db_path):
         detector = AnomalyDetector(db_path)

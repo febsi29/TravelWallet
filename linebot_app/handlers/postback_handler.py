@@ -134,7 +134,11 @@ def handle_postback(event: PostbackEvent, messaging_api: MessagingApi) -> None:
             reply_text = "查詢旅行時發生錯誤，請稍後再試。"
 
     elif action == "add_txn":
-        liff_url = _LIFF_URL_TEMPLATE.format(liff_id=LIFF_ID) if LIFF_ID else "https://travelwallet-web.onrender.com"
+        liff_url = (
+            _LIFF_URL_TEMPLATE.format(liff_id=LIFF_ID)
+            if LIFF_ID
+            else "https://travelwallet-web.onrender.com"
+        )
         reply_text = f"請開啟 TravelWallet 新增交易：\n{liff_url}"
 
     elif action == "split":

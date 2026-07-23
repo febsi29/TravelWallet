@@ -1,6 +1,7 @@
 """
 11_Predictions.py - 支出預測與智慧提醒頁面
 """
+
 import streamlit as st
 import os, sys, pandas as pd
 import plotly.graph_objects as go
@@ -63,15 +64,18 @@ try:
     smoothed = pred_detail.get("smoothed", [])
     if history:
         fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            y=history, name="實際支出", mode="lines+markers",
-            line=dict(color="#3B82F6")
-        ))
+        fig.add_trace(
+            go.Scatter(y=history, name="實際支出", mode="lines+markers", line=dict(color="#3B82F6"))
+        )
         if smoothed:
-            fig.add_trace(go.Scatter(
-                y=smoothed, name="預測（平滑）", mode="lines",
-                line=dict(color="#F59E0B", dash="dash")
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    y=smoothed,
+                    name="預測（平滑）",
+                    mode="lines",
+                    line=dict(color="#F59E0B", dash="dash"),
+                )
+            )
         fig.update_layout(
             title="每日消費走勢",
             xaxis_title="天數",

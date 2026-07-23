@@ -31,8 +31,8 @@ VALID_STATUSES = ("pending", "paid", "expired", "cancelled")
 
 PROVIDER_NAMES = {
     "line_pay": "LINE Pay",
-    "jko_pay":  "街口支付",
-    "paypal":   "PayPal",
+    "jko_pay": "街口支付",
+    "paypal": "PayPal",
 }
 
 
@@ -72,20 +72,21 @@ class PaymentService:
         if not isinstance(settlement_id, int) or settlement_id <= 0:
             raise ValueError(f"settlement_id 必須為正整數，收到: {settlement_id!r}")
         if provider not in VALID_PROVIDERS:
-            raise ValueError(
-                f"provider 必須為 {VALID_PROVIDERS}，收到: {provider!r}"
-            )
+            raise ValueError(f"provider 必須為 {VALID_PROVIDERS}，收到: {provider!r}")
 
         # 取得結算資訊
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT s.settlement_id, s.amount, s.currency_code, s.amount_twd,
                        uf.display_name AS from_name, ut.display_name AS to_name
                 FROM settlements s
                 JOIN users uf ON s.from_user = uf.user_id
                 JOIN users ut ON s.to_user  = ut.user_id
                 WHERE s.settlement_id = ?
-            """, (settlement_id,))
+            """,
+                (settlement_id,),
+            )
             row = cursor.fetchone()
 
         if not row:
@@ -98,13 +99,23 @@ class PaymentService:
         expires_at = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO payment_links
                 (settlement_id, provider, payment_url, qr_code_data,
                  amount, currency_code, status, expires_at)
                 VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
-            """, (settlement_id, provider, payment_url, qr_code_data,
-                  float(amount), currency, expires_at))
+            """,
+                (
+                    settlement_id,
+                    provider,
+                    payment_url,
+                    qr_code_data,
+                    float(amount),
+                    currency,
+                    expires_at,
+                ),
+            )
             link_id = cursor.lastrowid
 
         return {
@@ -133,6 +144,7 @@ class PaymentService:
     ) -> str:
         """建立各平台的付款連結（模擬）"""
         from urllib.parse import urlencode
+
         memo = f"TravelWallet-{from_name}-to-{to_name}"
 
         if provider == "line_pay":
@@ -202,25 +214,37 @@ class PaymentService:
             raise ValueError(f"link_id 必須為正整數，收到: {link_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT link_id, settlement_id, provider, payment_url, qr_code_data,
                        amount, currency_code, status, expires_at, paid_at, provider_ref,
                        created_at
                 FROM payment_links WHERE link_id = ?
-            """, (link_id,))
+            """,
+                (link_id,),
+            )
             row = cursor.fetchone()
 
         if not row:
             raise ValueError(f"找不到 link_id={link_id}")
 
-        keys = ["link_id", "settlement_id", "provider", "payment_url", "qr_code_data",
-                "amount", "currency_code", "status", "expires_at", "paid_at",
-                "provider_ref", "created_at"]
+        keys = [
+            "link_id",
+            "settlement_id",
+            "provider",
+            "payment_url",
+            "qr_code_data",
+            "amount",
+            "currency_code",
+            "status",
+            "expires_at",
+            "paid_at",
+            "provider_ref",
+            "created_at",
+        ]
         return dict(zip(keys, row))
 
-    def update_payment_status(
-        self, link_id: int, status: str, provider_ref: str = None
-    ) -> None:
+    def update_payment_status(self, link_id: int, status: str, provider_ref: str = None) -> None:
         """
         更新付款連結狀態
 
@@ -237,13 +261,16 @@ class PaymentService:
         paid_at = "datetime('now')" if status == "paid" else "NULL"
 
         with self._db() as (conn, cursor):
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 UPDATE payment_links
                 SET status = ?,
                     paid_at = CASE WHEN ? = 'paid' THEN datetime('now') ELSE NULL END,
                     provider_ref = ?
                 WHERE link_id = ?
-            """, (status, status, provider_ref, link_id))
+            """,
+                (status, status, provider_ref, link_id),
+            )
 
     def get_pending_payments(self, user_id: int) -> list:
         """
@@ -259,7 +286,8 @@ class PaymentService:
             raise ValueError(f"user_id 必須為正整數，收到: {user_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT pl.link_id, pl.settlement_id, pl.provider,
                        pl.payment_url, pl.amount, pl.currency_code,
                        pl.status, s.from_user, s.to_user,
@@ -270,12 +298,24 @@ class PaymentService:
                 JOIN users ut ON s.to_user   = ut.user_id
                 WHERE s.from_user = ? AND pl.status = 'pending'
                 ORDER BY pl.created_at DESC
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             rows = cursor.fetchall()
 
-        keys = ["link_id", "settlement_id", "provider", "payment_url",
-                "amount", "currency_code", "status", "from_user", "to_user",
-                "from_name", "to_name"]
+        keys = [
+            "link_id",
+            "settlement_id",
+            "provider",
+            "payment_url",
+            "amount",
+            "currency_code",
+            "status",
+            "from_user",
+            "to_user",
+            "from_name",
+            "to_name",
+        ]
         return [dict(zip(keys, r)) for r in rows]
 
     def get_settlement_payments(self, settlement_id: int) -> list:
@@ -292,17 +332,30 @@ class PaymentService:
             raise ValueError(f"settlement_id 必須為正整數，收到: {settlement_id!r}")
 
         with self._db() as (conn, cursor):
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT link_id, settlement_id, provider, payment_url,
                        amount, currency_code, status, expires_at, paid_at, created_at
                 FROM payment_links
                 WHERE settlement_id = ?
                 ORDER BY created_at DESC
-            """, (settlement_id,))
+            """,
+                (settlement_id,),
+            )
             rows = cursor.fetchall()
 
-        keys = ["link_id", "settlement_id", "provider", "payment_url",
-                "amount", "currency_code", "status", "expires_at", "paid_at", "created_at"]
+        keys = [
+            "link_id",
+            "settlement_id",
+            "provider",
+            "payment_url",
+            "amount",
+            "currency_code",
+            "status",
+            "expires_at",
+            "paid_at",
+            "created_at",
+        ]
         return [dict(zip(keys, r)) for r in rows]
 
     def simulate_payment(self, link_id: int) -> dict:
@@ -318,7 +371,5 @@ class PaymentService:
         if not isinstance(link_id, int) or link_id <= 0:
             raise ValueError(f"link_id 必須為正整數，收到: {link_id!r}")
 
-        self.update_payment_status(
-            link_id, "paid", provider_ref=f"DEMO_{link_id:06d}"
-        )
+        self.update_payment_status(link_id, "paid", provider_ref=f"DEMO_{link_id:06d}")
         return self.get_payment_status(link_id)
